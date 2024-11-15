@@ -1,0 +1,10 @@
+version: "3.8"
+services:
+  mongodb:
+    image: mongo
+    restart: always
+    environment:
+      - "MONGO_INITDB_ROOT_USERNAME=outfit"
+      - "MONGO_INITDB_ROOT_PASSWORD=scp"
+    ports:
+      - "127.0.0.1:27017:27017"
