@@ -1,145 +1,144 @@
 package models
 
 import (
-  "encoding/json"
-  "net/url"
-  "strings"
-  "time"
+	"encoding/json"
+	"net/url"
+	"strings"
+	"time"
 
-  "github.com/samber/lo"
-  "github.com/ushakovn/outfit/pkg/money"
+	"github.com/samber/lo"
+	"github.com/ushakovn/outfit/pkg/money"
 )
 
 const (
-  ProductTypeUnknown ProductType = "unknown"
-  ProductTypeLamoda  ProductType = "lamoda"
+	ProductTypeUnknown ProductType = "unknown"
+	ProductTypeLamoda  ProductType = "lamoda"
 )
 
 type ProductType string
 
 type Product struct {
-  URL         string          `bson:"url" json:"url"`
-  Brand       string          `bson:"brand" json:"brand"`
-  Category    string          `bson:"category" json:"category"`
-  Description string          `bson:"description" json:"description"`
-  Options     []ProductOption `bson:"options" json:"options"`
-  Embed       *EmbedProduct   `bson:"embed" json:"embed"`
-  ParsedAt    time.Time       `bson:"parsed_at" json:"parsed_at"`
+	URL         string          `bson:"url" json:"url"`
+	Brand       string          `bson:"brand" json:"brand"`
+	Category    string          `bson:"category" json:"category"`
+	Description string          `bson:"description" json:"description"`
+	Options     []ProductOption `bson:"options" json:"options"`
+	ParsedAt    time.Time       `bson:"parsed_at" json:"parsed_at"`
 }
 
 type ProductOption struct {
-  Stock ProductStock        `bson:"stock" json:"stock"`
-  Size  ProductSizeOptions  `bson:"size" json:"size"`
-  Price ProductPriceOptions `bson:"price" json:"price"`
+	Stock ProductStock        `bson:"stock" json:"stock"`
+	Size  ProductSizeOptions  `bson:"size" json:"size"`
+	Price ProductPriceOptions `bson:"price" json:"price"`
 }
 
 type ProductSize struct {
-  System string `bson:"system" json:"system"`
-  Value  string `bson:"value" json:"value"`
+	System string `bson:"system" json:"system"`
+	Value  string `bson:"value" json:"value"`
 }
 
 type ProductSizeOptions struct {
-  Brand             ProductSize        `bson:"brand" json:"brand"`
-  Source            ProductSize        `bson:"source" json:"source"`
-  EmbedNotFoundSize *EmbedNotFoundSize `bson:"embed_not_found_size" json:"embed_not_found_size"`
+	Brand             ProductSize        `bson:"brand" json:"brand"`
+	Source            ProductSize        `bson:"source" json:"source"`
+	EmbedNotFoundSize *EmbedNotFoundSize `bson:"embed_not_found_size" json:"embed_not_found_size"`
 }
 
 type EmbedNotFoundSize struct {
-  ValueString string `bson:"value_string" json:"value_string"`
+	StringValue string `bson:"string_value" json:"string_value"`
 }
 
 type ProductStock struct {
-  Quantity int64 `bson:"quantity" json:"quantity"`
+	Quantity int64 `bson:"quantity" json:"quantity"`
 }
 
 type ProductPrice struct {
-  IntValue    int64  `bson:"int_value" json:"int_value"`
-  StringValue string `bson:"string_value" json:"string_value"`
+	IntValue    int64  `bson:"int_value" json:"int_value"`
+	StringValue string `bson:"string_value" json:"string_value"`
 }
 
 type ProductPriceOptions struct {
-  Base     ProductPrice `bson:"price" json:"price"`
-  Discount ProductPrice `bson:"discount" json:"discount"`
+	Base     ProductPrice `bson:"price" json:"price"`
+	Discount ProductPrice `bson:"discount" json:"discount"`
 }
 
 type EmbedProduct struct {
-  Value json.RawMessage `bson:"value" json:"value"`
+	Value json.RawMessage `bson:"value" json:"value"`
 }
 
 type ProductDiff struct {
-  Options []ProductOptionDiff `bson:"options" json:"options"`
+	Options []ProductOptionDiff `bson:"options" json:"options"`
 }
 
 type ProductOptionDiff struct {
-  Stock ProductStockDiff   `bson:"stock" json:"stock"`
-  Size  ProductSizeOptions `bson:"size" json:"size"`
-  Price ProductPriceDiff   `bson:"price" json:"price"`
+	Stock ProductStockDiff   `bson:"stock" json:"stock"`
+	Size  ProductSizeOptions `bson:"size" json:"size"`
+	Price ProductPriceDiff   `bson:"price" json:"price"`
 }
 
 type ProductStockDiff struct {
-  Quantity        int64 `bson:"quantity" json:"quantity"`
-  IsAvailable     bool  `bson:"is_available" json:"is_available"`
-  IsComeToInStock bool  `bson:"is_come_to_in_stock" json:"is_come_to_in_stock"`
+	Quantity        int64 `bson:"quantity" json:"quantity"`
+	IsAvailable     bool  `bson:"is_available" json:"is_available"`
+	IsComeToInStock bool  `bson:"is_come_to_in_stock" json:"is_come_to_in_stock"`
 }
 
 type ProductPriceOptionsDiff struct {
-  Base     ProductPriceDiff `bson:"base" json:"base"`
-  Discount ProductPriceDiff `bson:"discount" json:"discount"`
+	Base     ProductPriceDiff `bson:"base" json:"base"`
+	Discount ProductPriceDiff `bson:"discount" json:"discount"`
 }
 
 type ProductPriceDiff struct {
-  IsLower bool   `bson:"is_lower" json:"is_lower"`
-  New     string `bson:"new" json:"new"`
-  Old     string `bson:"old" json:"old"`
-  Diff    string `bson:"diff" json:"diff"`
+	IsLower bool   `bson:"is_lower" json:"is_lower"`
+	New     string `bson:"new" json:"new"`
+	Old     string `bson:"old" json:"old"`
+	Diff    string `bson:"diff" json:"diff"`
 }
 
-func NewProductDiff(stored, parsed *Product) *ProductDiff {
-  storedOptionsBySize := lo.SliceToMap(stored.Options, func(opt ProductOption) (ProductSizeOptions, ProductOption) {
-    return opt.Size, opt
-  })
+func NewProductDiff(stored, parsed Product) *ProductDiff {
+	storedOptionsBySize := lo.SliceToMap(stored.Options, func(opt ProductOption) (ProductSizeOptions, ProductOption) {
+		return opt.Size, opt
+	})
 
-  optionsDiff := make([]ProductOptionDiff, 0, len(parsed.Options))
+	optionsDiff := make([]ProductOptionDiff, 0, len(parsed.Options))
 
-  for _, parsedOption := range parsed.Options {
-    storedOption, ok := storedOptionsBySize[parsedOption.Size]
-    if !ok {
-      continue
-    }
+	for _, parsedOption := range parsed.Options {
+		storedOption, ok := storedOptionsBySize[parsedOption.Size]
+		if !ok {
+			continue
+		}
 
-    stockDiff := ProductStockDiff{
-      Quantity:        parsedOption.Stock.Quantity,
-      IsAvailable:     parsedOption.Stock.Quantity > 0,
-      IsComeToInStock: parsedOption.Stock.Quantity > 0 && storedOption.Stock.Quantity <= 0,
-    }
+		stockDiff := ProductStockDiff{
+			Quantity:        parsedOption.Stock.Quantity,
+			IsAvailable:     parsedOption.Stock.Quantity > 0,
+			IsComeToInStock: parsedOption.Stock.Quantity > 0 && storedOption.Stock.Quantity <= 0,
+		}
 
-    priceDiffInt := parsedOption.Price.Discount.IntValue - storedOption.Price.Discount.IntValue
+		priceDiffInt := parsedOption.Price.Discount.IntValue - storedOption.Price.Discount.IntValue
 
-    priceDiff := ProductPriceDiff{
-      IsLower: priceDiffInt > 0,
-      New:     parsedOption.Price.Discount.StringValue,
-      Old:     storedOption.Price.Discount.StringValue,
-      Diff:    money.String(priceDiffInt),
-    }
+		priceDiff := ProductPriceDiff{
+			IsLower: priceDiffInt > 0,
+			New:     parsedOption.Price.Discount.StringValue,
+			Old:     storedOption.Price.Discount.StringValue,
+			Diff:    money.String(priceDiffInt),
+		}
 
-    optionsDiff = append(optionsDiff, ProductOptionDiff{
-      Stock: stockDiff,
-      Price: priceDiff,
-      Size:  parsedOption.Size,
-    })
-  }
+		optionsDiff = append(optionsDiff, ProductOptionDiff{
+			Stock: stockDiff,
+			Price: priceDiff,
+			Size:  parsedOption.Size,
+		})
+	}
 
-  return &ProductDiff{
-    Options: optionsDiff,
-  }
+	return &ProductDiff{
+		Options: optionsDiff,
+	}
 }
 
 func ProductTypeByURL(productURL string) ProductType {
-  parsedURL, _ := url.Parse(productURL)
+	parsedURL, _ := url.Parse(productURL)
 
-  if strings.Contains(parsedURL.Host, "lamoda") {
-    return ProductTypeLamoda
-  }
+	if strings.Contains(parsedURL.Host, "lamoda") {
+		return ProductTypeLamoda
+	}
 
-  return ProductTypeUnknown
+	return ProductTypeUnknown
 }
