@@ -36,7 +36,7 @@ func (b *Bot) registerTrackingFieldsMenuHandler(ctx context.Context) {
 				return false
 			}
 
-			return session.Message.Menu == models.TrackingInsertMenu
+			return session.Message.Menu == models.TrackingInsertMenu && update.Message.Text != "Назад"
 		},
 		b.handleTrackingFieldsMenu,
 	)

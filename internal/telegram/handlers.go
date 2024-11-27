@@ -19,23 +19,20 @@ func (b *Bot) handleStartMenu(ctx context.Context, bot *telegram.Bot, update *tg
 		return
 	}
 
-	reply := newReplyKeyboard("start").
+	reply := newReplyKeyboard(models.StartMenu).
 		Row().Button("Добавить отслеживание", bot, telegram.MatchTypeExact, b.handleTrackingInsertMenu).
-		Row().Button("Мои отслеживания", bot, telegram.MatchTypeExact, nil).
-		Row().Button("Удалить отслеживание", bot, telegram.MatchTypeExact, nil)
+		Row().Button("Мои отслеживания", bot, telegram.MatchTypeExact, b.handleTrackingListMenu)
 
-	text := `Данный бот создан для отслеживания товаров. 
+	text := `Данный бот создан для отслеживания товаров
   
-  Бот отсылает уведомления если:
-  1. Цена на товар была снижена или появилась скидка на товар.
-  2. Распроданный товар снова появился в наличие.
+Бот отсылает уведомления если:
+  1. Цена на товар была снижена или появилась скидка на товар
+  2. Распроданный товар снова появился в наличие
   
-  Управление ботом происходит с помощью виртуальной клавиатуры, под сообщением:
+Управление ботом происходит с помощью виртуальной клавиатуры:
   1. Добавить отслеживание - добавляет новое отслеживание по вашему товару
   2. Мои отслеживания - выводит список товаров, для которых подключено отслеживание
-  3. Удалить отслеживание - удаляет созданное вами ранее отслеживание
-  
-  Воспользуйтесь виртуальной клавиатурой, чтобы продолжить.`
+  3. Удалить отслеживание - удаляет созданное вами ранее отслеживание`
 
 	err := b.sendMessage(ctx, sendMessageParams{
 		ChatId: chatId,
@@ -64,17 +61,15 @@ func (b *Bot) handleStartSilentMenu(ctx context.Context, bot *telegram.Bot, upda
 		return
 	}
 
-	reply := newReplyKeyboard("start").
+	reply := newReplyKeyboard(models.StartSilentMenu).
 		Row().Button("Помощь", bot, telegram.MatchTypeExact, b.handleStartMenu).
 		Row().Button("Добавить отслеживание", bot, telegram.MatchTypeExact, b.handleTrackingInsertMenu).
-		Row().Button("Мои отслеживания", bot, telegram.MatchTypeExact, nil).
-		Row().Button("Удалить отслеживание", bot, telegram.MatchTypeExact, nil)
+		Row().Button("Мои отслеживания", bot, telegram.MatchTypeExact, b.handleTrackingListMenu)
 
 	err := b.sendMessage(ctx, sendMessageParams{
 		ChatId: chatId,
-		Text: `Вы вернулись в главное меню бота. 
-Если вам требуется подсказка, нажмите клавишу "Помощь", на виртуальной клавиатуре или наберите /start.`,
-		Reply: reply,
+		Text:   `Вы вернулись в главное меню бота`,
+		Reply:  reply,
 	})
 	if err != nil {
 		log.Errorf("telegram.handleStartSilentMenu: b.sendMessage: %v", err)
@@ -98,35 +93,31 @@ func (b *Bot) handleTrackingInsertMenu(ctx context.Context, bot *telegram.Bot, u
 		return
 	}
 
-	text := `Для добавления отслеживания введите следующие данные:
-1. Ссылка на карточку товара
-2. Интересующие размеры через запятую (в точности так, как указано на сайте)
-3. Размер персональной скидки в процентах (если она есть)
+	text := `Для добавления "отслеживания" введите следующие данные:
+ 1. Ссылка на карточку товара
+ 2. Интересующие размеры через запятую (в точности так, как указано на сайте)
+ 3. Размер персональной скидки в процентах (если она есть)
 
 Пример ввода данных:
-1. https://www.lamoda.ru/p/rtlacv500501/clothes-carharttwip-dzhinsy/
-2. 46/48, M, XL, 56/54
-3. 7
+ 1. https://www.lamoda.ru/p/rtlacv500501/clothes-carharttwip-dzhinsy/
+ 2. 46/48, M, XL, 56/54
+ 3. 7
 
 Если выбранный вами товар one size или не имеет размерной сетки:
-1. https://www.lamoda.ru/p/rtlacv500501/clothes-carharttwip-dzhinsy/
-2. -
-3. 7
+ 1. https://www.lamoda.ru/p/rtlacv500501/clothes-carharttwip-dzhinsy/
+ 2. -
+ 3. 7
 
 Если у вас отсутствует персональная скидка:
-1. https://www.lamoda.ru/p/rtlacv500501/clothes-carharttwip-dzhinsy/
-2. 46/48, M, XL, 56/54
-3. -
+ 1. https://www.lamoda.ru/p/rtlacv500501/clothes-carharttwip-dzhinsy/
+ 2. 46/48, M, XL, 56/54
+ 3. -
 
-Бот проверит введенные вами данные и в тестовом режиме проверит карточку товара.
-Вы получите ответное сообщение, в котором будет информация об отслеживаемом товаре.
-Если все хорошо, "Подтвердите" отслеживание с помощью виртуальной клавиатуры.
-Если что-то не так или вы передумали отслеживать товар, нажмите клавишу "Отмены".
- 
-Если вы передумали, нажмите клавишу "Назад", на виртуальной клавиатуре,
-чтобы вернуться в главное меню бота.`
+Бот проверит введенные вами данные и в тестовом режиме проверит карточку товара
+Вы получите ответное сообщение, в котором будет информация об отслеживаемом товаре
+Если вы передумали, нажмите клавишу "Назад", чтобы вернуться в главное меню бота`
 
-	reply := newReplyKeyboard("tracking").
+	reply := newReplyKeyboard(models.TrackingInsertMenu).
 		Row().Button("Назад", bot, telegram.MatchTypeExact, b.handleStartSilentMenu)
 
 	err := b.sendMessage(ctx, sendMessageParams{
@@ -158,7 +149,7 @@ func (b *Bot) handleTrackingFieldsMenu(ctx context.Context, bot *telegram.Bot, u
 
 	parsedFields := parseTrackingFields(update.Message.Text)
 
-	reply := newReplyKeyboard("tracking").
+	reply := newReplyKeyboard(models.TrackingFieldsMenu).
 		Row().Button("Назад", bot, telegram.MatchTypeExact, b.handleStartSilentMenu)
 
 	if parsedFields.ErrorMessage != "" {
@@ -176,8 +167,8 @@ func (b *Bot) handleTrackingFieldsMenu(ctx context.Context, bot *telegram.Bot, u
 
 	err := b.sendMessage(ctx, sendMessageParams{
 		ChatId: chatId,
-		Text: `Мы получили введенные вами данные. 
-Сейчас бот проверит данные по карточке товара и вернется с результатом.`,
+		Text: `Мы получили введенные вами данные
+Сейчас бот проверит карточку товара и вернется с результатом`,
 		Reply: reply,
 	})
 	if err != nil {
@@ -194,7 +185,7 @@ func (b *Bot) handleTrackingFieldsMenu(ctx context.Context, bot *telegram.Bot, u
 		if errors.Is(err, tracker.ErrUnsupportedProductType) {
 			err = b.sendMessage(ctx, sendMessageParams{
 				ChatId: chatId,
-				Text:   `Извините, наш бот пока не умеет работать с данным сайтом.`,
+				Text:   `Извините, наш бот пока не умеет работать с данным сайтом`,
 				Reply:  reply,
 			})
 			if err != nil {
@@ -216,15 +207,15 @@ func (b *Bot) handleTrackingFieldsMenu(ctx context.Context, bot *telegram.Bot, u
 		return
 	}
 
-	reply = newReplyKeyboard("tracking").
+	reply = newReplyKeyboard(models.TrackingFieldsMenu).
 		Row().Button("Подтвердить", bot, telegram.MatchTypeExact, b.handleTrackingConfirmMenu).
 		Row().Button("Отменить", bot, telegram.MatchTypeExact, b.handleStartSilentMenu)
 
 	err = b.sendMessage(ctx, sendMessageParams{
 		ChatId: chatId,
-		Text: `Проверьте полученные от бота данные.
-Если все хорошо, подтвердите отслеживание нажав "Подтвердить" на виртуальной клавиатуре.
-Если вы передумали или хотите вернуться в главное меню - нажмите "Отменить".`,
+		Text: `Проверьте полученные от бота данные
+Если все хорошо, подтвердите отслеживание нажав "Подтвердить"
+Если вы передумали или хотите вернуться в главное меню, нажмите "Отменить"`,
 		Reply: reply,
 	})
 	if err != nil {
@@ -268,14 +259,14 @@ func (b *Bot) handleTrackingConfirmMenu(ctx context.Context, bot *telegram.Bot, 
 		return
 	}
 
-	reply := newReplyKeyboard("tracking").
+	reply := newReplyKeyboard(models.TrackingConfirmMenu).
 		Row().Button("Помощь", bot, telegram.MatchTypeExact, b.handleStartMenu).
 		Row().Button("Добавить отслеживание", bot, telegram.MatchTypeExact, b.handleTrackingInsertMenu).
 		Row().Button("Мои отслеживания", bot, telegram.MatchTypeExact, b.handleTrackingListMenu)
 
 	err = b.sendMessage(ctx, sendMessageParams{
 		ChatId: chatId,
-		Text: `Отслеживание для товара успешно создано.
+		Text: `Отслеживание для товара успешно создано
 Мы пришлем вам сообщение, как только получим новости по товару!`,
 		Reply: reply,
 	})
@@ -312,17 +303,34 @@ func (b *Bot) handleTrackingListMenu(ctx context.Context, bot *telegram.Bot, upd
 			ChatId: chatId,
 			Index:  index,
 		}
-		b.deps.Cache.TrackingURLs[key] = tracking.URL
+		b.deps.cache.TrackingURLs[key] = tracking.URL
 	}
 
-	slider := b.newTrackingSlider(trackingSliderParams{
-		Bot:       bot,
-		Trackings: list,
-	})
+	if len(list) > 0 {
+		slider := b.newTrackingSlider(trackingSliderParams{
+			Bot:       bot,
+			Trackings: list,
+		})
 
-	if _, err = slider.Show(ctx, bot, chatId); err != nil {
-		log.Errorf("telegram.handleTrackingListMenu: telegram.Slider.Show: %v", err)
-		return
+		if _, err = slider.Show(ctx, bot, chatId); err != nil {
+			log.Errorf("telegram.handleTrackingListMenu: telegram.Slider.Show: %v", err)
+			return
+		}
+	} else {
+		reply := newReplyKeyboard(models.TrackingListMenu).
+			Row().Button("Помощь", bot, telegram.MatchTypeExact, b.handleStartMenu).
+			Row().Button("Добавить отслеживание", bot, telegram.MatchTypeExact, b.handleTrackingInsertMenu).
+			Row().Button("Мои отслеживания", bot, telegram.MatchTypeExact, b.handleTrackingListMenu)
+
+		err = b.sendMessage(ctx, sendMessageParams{
+			ChatId: chatId,
+			Text:   `У вас пока нет отслеживаний!`,
+			Reply:  reply,
+		})
+		if err != nil {
+			log.Errorf("telegram.handleTrackingListMenu: b.sendMessage: %v", err)
+			return
+		}
 	}
 
 	err = b.upsertSession(ctx, upsertSessionParams{
@@ -342,7 +350,7 @@ func (b *Bot) handleTrackingSelectDeleteMenu(ctx context.Context, bot *telegram.
 		return
 	}
 
-	url, ok := b.deps.Cache.TrackingURLs[chatSelectedTracking{
+	url, ok := b.deps.cache.TrackingURLs[chatSelectedTracking{
 		ChatId: chatId,
 		Index:  index,
 	}]
@@ -357,7 +365,8 @@ func (b *Bot) handleTrackingSelectDeleteMenu(ctx context.Context, bot *telegram.
 		return
 	}
 
-	reply := newReplyKeyboard("tracking").
+	reply := newReplyKeyboard(models.TrackingSelectDeleteMenu).
+		Row().Button("Да", bot, telegram.MatchTypeExact, b.handleTrackingDeleteConfirmMenu).
 		Row().Button("Назад", bot, telegram.MatchTypeExact, b.handleTrackingListMenu)
 
 	err = b.sendMessage(ctx, sendMessageParams{
@@ -381,43 +390,35 @@ func (b *Bot) handleTrackingSelectDeleteMenu(ctx context.Context, bot *telegram.
 	}
 }
 
-func (b *Bot) handleTrackingSelectListMenu(ctx context.Context, bot *telegram.Bot, message tgmodels.MaybeInaccessibleMessage) {
+func (b *Bot) handleTrackingSelectSilentMenu(ctx context.Context, bot *telegram.Bot, message tgmodels.MaybeInaccessibleMessage) {
 	chatId, ok := findChatIdInMaybeInaccessible(message)
 	if !ok {
-		log.Warnf("telegram.handleTrackingSelectListMenu: findChatIdInUpdate: chat not found")
+		log.Warnf("telegram.handleStartSilentMenu: findChatIdInUpdate: chat not found")
 		return
 	}
 
-	list, err := b.listTrackings(ctx, chatId)
-	if err != nil {
-		log.Errorf("telegram.handleTrackingSelectListMenu: b.listTrackings: %v", err)
-		return
-	}
+	reply := newReplyKeyboard(models.StartSilentMenu).
+		Row().Button("Помощь", bot, telegram.MatchTypeExact, b.handleStartMenu).
+		Row().Button("Добавить отслеживание", bot, telegram.MatchTypeExact, b.handleTrackingInsertMenu).
+		Row().Button("Мои отслеживания", bot, telegram.MatchTypeExact, b.handleTrackingListMenu)
 
-	for index, tracking := range list {
-		key := chatSelectedTracking{
-			ChatId: chatId,
-			Index:  index,
-		}
-		b.deps.Cache.TrackingURLs[key] = tracking.URL
-	}
-
-	slider := b.newTrackingSlider(trackingSliderParams{
-		Bot:       bot,
-		Trackings: list,
+	err := b.sendMessage(ctx, sendMessageParams{
+		ChatId: chatId,
+		Text: `Вы вернулись в главное меню бота. 
+Если вам требуется подсказка, нажмите клавишу "Помощь", на виртуальной клавиатуре или наберите /start.`,
+		Reply: reply,
 	})
-
-	if _, err = slider.Show(ctx, bot, chatId); err != nil {
-		log.Errorf("telegram.handleTrackingListMenu: telegram.Slider.Show: %v", err)
+	if err != nil {
+		log.Errorf("telegram.handleStartSilentMenu: b.sendMessage: %v", err)
 		return
 	}
 
 	err = b.upsertSession(ctx, upsertSessionParams{
 		ChatId: chatId,
-		Menu:   models.TrackingListMenu,
+		Menu:   models.StartSilentMenu,
 	})
 	if err != nil {
-		log.Errorf("telegram.handleTrackingListMenu: b.upsertSession: %v", err)
+		log.Errorf("telegram.handleStartSilentMenu: b.upsertSession: %v", err)
 		return
 	}
 }
@@ -438,7 +439,7 @@ func (b *Bot) handleTrackingDeleteConfirmMenu(ctx context.Context, bot *telegram
 	_, err = b.deps.Mongodb.Delete(ctx, mongodb.DeleteParams{
 		CommonParams: mongodb.CommonParams{
 			Database:   "outfit",
-			Collection: "tracking",
+			Collection: "trackings",
 		},
 		Filters: map[string]any{
 			"chat_id": session.Tracking.ChatId,
@@ -450,7 +451,7 @@ func (b *Bot) handleTrackingDeleteConfirmMenu(ctx context.Context, bot *telegram
 		return
 	}
 
-	reply := newReplyKeyboard("start").
+	reply := newReplyKeyboard(models.TrackingConfirmDeleteMenu).
 		Row().Button("Помощь", bot, telegram.MatchTypeExact, b.handleStartMenu).
 		Row().Button("Добавить отслеживание", bot, telegram.MatchTypeExact, b.handleTrackingInsertMenu).
 		Row().Button("Мои отслеживания", bot, telegram.MatchTypeExact, b.handleTrackingListMenu)

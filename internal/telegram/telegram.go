@@ -16,10 +16,10 @@ type Dependencies struct {
 	Tracker  *tracker.Tracker
 	Telegram *telegram.Bot
 	Mongodb  *mongodb.Client
-	Cache    Cache
+	cache    cache
 }
 
-type Cache struct {
+type cache struct {
 	TrackingURLs map[chatSelectedTracking]string
 }
 
@@ -29,6 +29,9 @@ type chatSelectedTracking struct {
 }
 
 func NewBot(deps Dependencies) *Bot {
+	deps.cache = cache{
+		TrackingURLs: make(map[chatSelectedTracking]string),
+	}
 	return &Bot{deps: deps}
 }
 

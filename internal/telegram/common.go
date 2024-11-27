@@ -104,6 +104,7 @@ func (b *Bot) upsertSession(ctx context.Context, params upsertSessionParams) err
 			CommonParams: mongodb.CommonParams{
 				Database:   "outfit",
 				Collection: "sessions",
+				StructType: models.Session{},
 			},
 			Filters: map[string]any{
 				"chat_id": session.ChatId,
@@ -187,7 +188,7 @@ func parseTrackingFields(fields string) (res parsedTrackingFields) {
 	urlString = strings.TrimSpace(urlString)
 
 	if urlString == "" {
-		res.ErrorMessage = telegram.EscapeMarkdown(`Не удалось найти ссылку на товар в сообщении.
+		res.ErrorMessage = `Не удалось найти ссылку на товар в сообщении.
 
 Пример ввода данных:
 1. https://www.lamoda.ru/p/rtlacv500501/clothes-carharttwip-dzhinsy/
@@ -195,18 +196,18 @@ func parseTrackingFields(fields string) (res parsedTrackingFields) {
 3. 7
 
  Попробуйте еще раз.
-`)
+`
 
 		return res
 	}
 
 	err := validator.URL(urlString)
 	if err != nil {
-		res.ErrorMessage = telegram.EscapeMarkdown(`Кажется, введенная вами ссылка имеет неверный формат.
+		res.ErrorMessage = `Кажется, введенная вами ссылка имеет неверный формат.
 Пример корректной ссылки: https://www.lamoda.ru/p/rtlacv500501/clothes-carharttwip-dzhinsy/
 
  Попробуйте еще раз.
-`)
+`
 
 		return res
 	}
@@ -217,7 +218,7 @@ func parseTrackingFields(fields string) (res parsedTrackingFields) {
 	sizesString = strings.TrimSpace(sizesString)
 
 	if sizesString == "" {
-		res.ErrorMessage = telegram.EscapeMarkdown(`Не удалось найти список размеров для товара.
+		res.ErrorMessage = `Не удалось найти список размеров для товара.
 
 Пример ввода данных:
 1. https://www.lamoda.ru/p/rtlacv500501/clothes-carharttwip-dzhinsy/
@@ -225,14 +226,14 @@ func parseTrackingFields(fields string) (res parsedTrackingFields) {
 3. 7
 
  Попробуйте еще раз.
-`)
+`
 
 		return res
 	}
 
 	sizesSlice := strings.Split(sizesString, ",")
 	if len(sizesSlice) == 0 {
-		res.ErrorMessage = telegram.EscapeMarkdown(`Не удалось найти список размеров для товара.
+		res.ErrorMessage = `Не удалось найти список размеров для товара.
 
 Пример ввода данных:
 1. https://www.lamoda.ru/p/rtlacv500501/clothes-carharttwip-dzhinsy/
@@ -240,7 +241,7 @@ func parseTrackingFields(fields string) (res parsedTrackingFields) {
 3. 7
 
  Попробуйте еще раз.
-`)
+`
 
 		return res
 	}
@@ -261,7 +262,7 @@ func parseTrackingFields(fields string) (res parsedTrackingFields) {
 	discountString = strings.TrimSpace(discountString)
 
 	if discountString == "" {
-		res.ErrorMessage = telegram.EscapeMarkdown(`Не удалось найти поле с указанием персональной скидки.
+		res.ErrorMessage = `Не удалось найти поле с указанием персональной скидки.
 
 Пример ввода данных:
 1. https://www.lamoda.ru/p/rtlacv500501/clothes-carharttwip-dzhinsy/
@@ -274,7 +275,7 @@ func parseTrackingFields(fields string) (res parsedTrackingFields) {
 3. -
 
  Попробуйте еще раз.
-`)
+`
 
 		return res
 	}
@@ -286,7 +287,7 @@ func parseTrackingFields(fields string) (res parsedTrackingFields) {
 
 		discountInt, castErr := cast.ToInt64E(discountString)
 		if castErr != nil {
-			res.ErrorMessage = telegram.EscapeMarkdown(`Кажется, число, указанное в размере скидки некорректное. 
+			res.ErrorMessage = `Кажется, число, указанное в размере скидки некорректное. 
 
 Пример ввода данных:
 1. https://www.lamoda.ru/p/rtlacv500501/clothes-carharttwip-dzhinsy/
@@ -294,7 +295,7 @@ func parseTrackingFields(fields string) (res parsedTrackingFields) {
 3. 7
 
  Попробуйте еще раз.
-`)
+`
 
 			return res
 		}
@@ -364,16 +365,19 @@ func (b *Bot) newTrackingSlider(params trackingSliderParams) *tgslider.Slider {
 		}
 
 		slides = append(slides, tgslider.Slide{
-			Text: res.Message.TextValue,
+			Text:  telegram.EscapeMarkdown(res.Message.TextValue),
+			Photo: photo,
 		})
 	}
 
-	return tgslider.New(params.Bot, nil,
+	return tgslider.New(params.Bot, slides,
 		tgslider.OnError(func(err error) {
 			log.Errorf("telegram.TrackingSlider: %v", err)
 		}),
 		tgslider.WithPrefix("tracking"),
-		tgslider.OnSelect("Удалить отслеживание", true, b.handleTrackingSelectDeleteMenu),
-		tgslider.OnCancel("Вернуться назад", true, b.handleTrackingSelectListMenu),
+		tgslider.OnSelect("Удалить", false, b.handleTrackingSelectDeleteMenu),
+		tgslider.OnCancel("Назад", false, b.handleTrackingSelectSilentMenu),
 	)
 }
+
+var photo = `https://w7.pngwing.com/pngs/566/160/png-transparent-golang-hd-logo-thumbnail.png`

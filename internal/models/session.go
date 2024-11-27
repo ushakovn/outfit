@@ -14,7 +14,7 @@ const (
 	TrackingConfirmDeleteMenu SessionMenu = "tracking_delete_confirm_menu"
 )
 
-type SessionMenu string
+type SessionMenu = string
 
 type Session struct {
 	ChatId   int64          `bson:"chat_id" json:"chat_id"`
