@@ -10,12 +10,15 @@ import (
   "github.com/go-resty/resty/v2"
   "github.com/go-telegram/bot"
   log "github.com/sirupsen/logrus"
+  "github.com/ushakovn/outfit/internal/config"
   "github.com/ushakovn/outfit/internal/models"
   "github.com/ushakovn/outfit/internal/parser/lamoda"
   "github.com/ushakovn/outfit/internal/provider/mongodb"
   "github.com/ushakovn/outfit/internal/telegram"
   "github.com/ushakovn/outfit/internal/tracker"
   "github.com/ushakovn/outfit/pkg/parser/xpath"
+
+  _ "github.com/ushakovn/boiler/pkg/app"
 )
 
 func main() {
@@ -23,18 +26,18 @@ func main() {
 
   mongoClient, err := mongodb.NewClient(ctx,
     mongodb.Config{
-      Host: "localhost",
-      Port: "27017",
+      Host: config.Get(ctx, config.MongodbHost).String(),
+      Port: config.Get(ctx, config.MongodbPort).String(),
       Authentication: &mongodb.Authentication{
-        User:     "outfit",
-        Password: "scp",
+        User:     config.Get(ctx, config.MongodbUser).String(),
+        Password: config.Get(ctx, config.MongodbPassword).String(),
       },
     },
     mongodb.Dependencies{
       Client: http.DefaultClient,
     })
   if err != nil {
-    log.Fatal("mongodb.NewClient: %v", err)
+    log.Fatalf("mongodb.NewClient: %v", err)
   }
 
   xpathParser := xpath.NewParser(xpath.Dependencies{
@@ -52,9 +55,9 @@ func main() {
     },
   })
 
-  telegramClient, err := bot.New("6205725186:AAFfnWUUclsCcGLR4Uq2U-2vXqQ3PjK1NO4")
+  telegramClient, err := bot.New(config.Get(ctx, config.TelegramToken).String())
   if err != nil {
-    log.Fatal("bot.New: %v", err)
+    log.Fatalf("bot.New: %v", err)
   }
 
   telegramBot := telegram.NewBot(telegram.Dependencies{

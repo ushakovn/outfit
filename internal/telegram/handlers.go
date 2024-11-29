@@ -1,477 +1,767 @@
 package telegram
 
 import (
-	"context"
-	"errors"
+  "context"
+  "errors"
+  "fmt"
+  "strings"
 
-	telegram "github.com/go-telegram/bot"
-	tgmodels "github.com/go-telegram/bot/models"
-	log "github.com/sirupsen/logrus"
-	"github.com/ushakovn/outfit/internal/models"
-	"github.com/ushakovn/outfit/internal/provider/mongodb"
-	"github.com/ushakovn/outfit/internal/tracker"
+  telegram "github.com/go-telegram/bot"
+  tgmodels "github.com/go-telegram/bot/models"
+  "github.com/samber/lo"
+  log "github.com/sirupsen/logrus"
+  "github.com/ushakovn/outfit/internal/models"
+  "github.com/ushakovn/outfit/internal/tracker"
 )
 
 func (b *Bot) handleStartMenu(ctx context.Context, bot *telegram.Bot, update *tgmodels.Update) {
-	chatId, ok := findChatIdInUpdate(update)
-	if !ok {
-		log.Warnf("telegram.handleStartMenu: findChatIdInUpdate: chat not found")
-		return
-	}
+  chatId, ok := findChatIdInUpdate(update)
+  if !ok {
+    log.
+      WithField("update.message", update.Message).
+      WithField("menu", models.StartMenu).
+      Warn("chat_id not found")
 
-	reply := newReplyKeyboard(models.StartMenu).
-		Row().Button("Добавить отслеживание", bot, telegram.MatchTypeExact, b.handleTrackingInsertMenu).
-		Row().Button("Мои отслеживания", bot, telegram.MatchTypeExact, b.handleTrackingListMenu)
+    return
+  }
 
-	text := `Данный бот создан для отслеживания товаров
-  
-Бот отсылает уведомления если:
-  1. Цена на товар была снижена или появилась скидка на товар
-  2. Распроданный товар снова появился в наличие
-  
-Управление ботом происходит с помощью виртуальной клавиатуры:
-  1. Добавить отслеживание - добавляет новое отслеживание по вашему товару
-  2. Мои отслеживания - выводит список товаров, для которых подключено отслеживание
-  3. Удалить отслеживание - удаляет созданное вами ранее отслеживание`
+  reply := newReplyKeyboard(models.StartMenu).
+    Row().Button("Добавить отслеживание", bot, telegram.MatchTypeExact, b.handleTrackingInsertMenu).
+    Row().Button("Мои отслеживания", bot, telegram.MatchTypeExact, b.handleTrackingListMenu)
 
-	err := b.sendMessage(ctx, sendMessageParams{
-		ChatId: chatId,
-		Text:   text,
-		Reply:  reply,
-	})
-	if err != nil {
-		log.Errorf("telegram.handleStartMenu: b.sendMessage: %v", err)
-		return
-	}
+  text := `<b>Данный бот создан для отслеживания товаров 👓.</b>
 
-	err = b.upsertSession(ctx, upsertSessionParams{
-		ChatId: chatId,
-		Menu:   models.StartMenu,
-	})
-	if err != nil {
-		log.Errorf("telegram.handleStartMenu: b.upsertSession: %v", err)
-		return
-	}
+<b>Бот отсылает уведомления если:</b>
+  1. Цена на товар была снижена или появилась скидка на товар 📉.
+  2. Распроданный товар снова появился в наличие 📦.
+
+<b>Управление ботом происходит с помощью виртуальной клавиатуры:</b>
+  1. Добавить отслеживание 📨 - добавляет отслеживание по вашему товару.
+  2. Мои отслеживания ✉️ - выводит список отслеживаемых вами товаров.`
+
+  err := b.sendMessage(ctx, sendMessageParams{
+    ChatId: chatId,
+    Text:   text,
+    Reply:  reply,
+  })
+  if err != nil {
+    log.
+      WithField("chat_id", chatId).
+      WithField("menu", models.StartMenu).
+      Errorf("b.sendMessage: %v", err)
+
+    return
+  }
+
+  err = b.upsertSession(ctx, upsertSessionParams{
+    ChatId: chatId,
+    Menu:   models.StartMenu,
+  })
+  if err != nil {
+    log.
+      WithField("chat_id", chatId).
+      WithField("menu", models.StartMenu).
+      Errorf("b.upsertSession: %v", err)
+
+    return
+  }
 }
 
 func (b *Bot) handleStartSilentMenu(ctx context.Context, bot *telegram.Bot, update *tgmodels.Update) {
-	chatId, ok := findChatIdInUpdate(update)
-	if !ok {
-		log.Warnf("telegram.handleStartSilentMenu: findChatIdInUpdate: chat not found")
-		return
-	}
+  chatId, ok := findChatIdInUpdate(update)
+  if !ok {
+    log.
+      WithField("update.message", update.Message).
+      WithField("menu", models.StartSilentMenu).
+      Warn("chat_id not found")
 
-	reply := newReplyKeyboard(models.StartSilentMenu).
-		Row().Button("Помощь", bot, telegram.MatchTypeExact, b.handleStartMenu).
-		Row().Button("Добавить отслеживание", bot, telegram.MatchTypeExact, b.handleTrackingInsertMenu).
-		Row().Button("Мои отслеживания", bot, telegram.MatchTypeExact, b.handleTrackingListMenu)
+    return
+  }
 
-	err := b.sendMessage(ctx, sendMessageParams{
-		ChatId: chatId,
-		Text:   `Вы вернулись в главное меню бота`,
-		Reply:  reply,
-	})
-	if err != nil {
-		log.Errorf("telegram.handleStartSilentMenu: b.sendMessage: %v", err)
-		return
-	}
+  reply := newReplyKeyboard(models.StartSilentMenu).
+    Row().Button("Помощь 📄", bot, telegram.MatchTypeExact, b.handleStartMenu).
+    Row().Button("Добавить отслеживание 📨", bot, telegram.MatchTypeExact, b.handleTrackingInsertMenu).
+    Row().Button("Мои отслеживания ✉️", bot, telegram.MatchTypeExact, b.handleTrackingListMenu)
 
-	err = b.upsertSession(ctx, upsertSessionParams{
-		ChatId: chatId,
-		Menu:   models.StartSilentMenu,
-	})
-	if err != nil {
-		log.Errorf("telegram.handleStartSilentMenu: b.upsertSession: %v", err)
-		return
-	}
+  err := b.sendMessage(ctx, sendMessageParams{
+    ChatId: chatId,
+    Text:   `Вы вернулись в главное меню бота 👓.`,
+    Reply:  reply,
+  })
+  if err != nil {
+    log.
+      WithField("chat_id", chatId).
+      WithField("menu", models.StartSilentMenu).
+      Errorf("b.sendMessage: %v", err)
+
+    return
+  }
+
+  err = b.upsertSession(ctx, upsertSessionParams{
+    ChatId: chatId,
+    Menu:   models.StartSilentMenu,
+  })
+  if err != nil {
+    log.
+      WithField("chat_id", chatId).
+      WithField("menu", models.StartSilentMenu).
+      Errorf("b.upsertSession: %v", err)
+
+    return
+  }
 }
 
 func (b *Bot) handleTrackingInsertMenu(ctx context.Context, bot *telegram.Bot, update *tgmodels.Update) {
-	chatId, ok := findChatIdInUpdate(update)
-	if !ok {
-		log.Warnf("telegram.handleTrackingInsertMenu: findChatIdInUpdate: chat not found")
-		return
-	}
+  chatId, ok := findChatIdInUpdate(update)
+  if !ok {
+    log.
+      WithField("update.message", update.Message).
+      WithField("menu", models.TrackingInsertMenu).
+      Warn("chat_id not found")
 
-	text := `Для добавления "отслеживания" введите следующие данные:
- 1. Ссылка на карточку товара
- 2. Интересующие размеры через запятую (в точности так, как указано на сайте)
- 3. Размер персональной скидки в процентах (если она есть)
+    return
+  }
 
-Пример ввода данных:
- 1. https://www.lamoda.ru/p/rtlacv500501/clothes-carharttwip-dzhinsy/
- 2. 46/48, M, XL, 56/54
- 3. 7
+  reply := newReplyKeyboard(models.TrackingInsertMenu).
+    Row().Button("Назад 👓", bot, telegram.MatchTypeExact, b.handleStartSilentMenu)
 
-Если выбранный вами товар one size или не имеет размерной сетки:
- 1. https://www.lamoda.ru/p/rtlacv500501/clothes-carharttwip-dzhinsy/
- 2. -
- 3. 7
+  err := b.sendMessage(ctx, sendMessageParams{
+    ChatId: chatId,
+    Text:   `Введите ссылку на отслеживаемый товар 📦.`,
+    Reply:  reply,
+  })
+  if err != nil {
+    log.
+      WithField("chat_id", chatId).
+      WithField("menu", models.TrackingInsertMenu).
+      Errorf("b.sendMessage: %v", err)
 
-Если у вас отсутствует персональная скидка:
- 1. https://www.lamoda.ru/p/rtlacv500501/clothes-carharttwip-dzhinsy/
- 2. 46/48, M, XL, 56/54
- 3. -
+    return
+  }
 
-Бот проверит введенные вами данные и в тестовом режиме проверит карточку товара
-Вы получите ответное сообщение, в котором будет информация об отслеживаемом товаре
-Если вы передумали, нажмите клавишу "Назад", чтобы вернуться в главное меню бота`
+  err = b.upsertSession(ctx, upsertSessionParams{
+    ChatId: chatId,
+    Menu:   models.TrackingInsertMenu,
+  })
+  if err != nil {
+    log.
+      WithField("chat_id", chatId).
+      WithField("menu", models.TrackingInsertMenu).
+      Errorf("b.upsertSession: %v", err)
 
-	reply := newReplyKeyboard(models.TrackingInsertMenu).
-		Row().Button("Назад", bot, telegram.MatchTypeExact, b.handleStartSilentMenu)
-
-	err := b.sendMessage(ctx, sendMessageParams{
-		ChatId: chatId,
-		Text:   text,
-		Reply:  reply,
-	})
-	if err != nil {
-		log.Errorf("telegram.handleTrackingInsertMenu: b.sendMessage: %v", err)
-		return
-	}
-
-	err = b.upsertSession(ctx, upsertSessionParams{
-		ChatId: chatId,
-		Menu:   models.TrackingInsertMenu,
-	})
-	if err != nil {
-		log.Errorf("telegram.handleTrackingInsertMenu: b.upsertSession: %v", err)
-		return
-	}
+    return
+  }
 }
 
-func (b *Bot) handleTrackingFieldsMenu(ctx context.Context, bot *telegram.Bot, update *tgmodels.Update) {
-	chatId, ok := findChatIdInUpdate(update)
-	if !ok {
-		log.Warnf("telegram.handleTrackingFieldsMenu: findChatIdInUpdate: chat not found")
-		return
-	}
+func (b *Bot) handleTrackingInputUrlMenu(ctx context.Context, bot *telegram.Bot, update *tgmodels.Update) {
+  chatId, ok := findChatIdInUpdate(update)
+  if !ok {
+    log.
+      WithField("update.message", update.Message).
+      WithField("menu", models.TrackingInputUrlMenu).
+      Warn("chat_id not found")
 
-	parsedFields := parseTrackingFields(update.Message.Text)
+    return
+  }
 
-	reply := newReplyKeyboard(models.TrackingFieldsMenu).
-		Row().Button("Назад", bot, telegram.MatchTypeExact, b.handleStartSilentMenu)
+  reply := newReplyKeyboard(models.TrackingInputUrlMenu).
+    Row().Button("Назад 👓", bot, telegram.MatchTypeExact, b.handleStartSilentMenu)
 
-	if parsedFields.ErrorMessage != "" {
-		err := b.sendMessage(ctx, sendMessageParams{
-			ChatId: chatId,
-			Text:   parsedFields.ErrorMessage,
-			Reply:  reply,
-		})
-		if err != nil {
-			log.Errorf("telegram.handleTrackingFieldsMenu: b.sendMessage: %v", err)
-		}
-		log.Warnf("telegram.handleTrackingFieldsMenu: parseTrackingFields: %v", parsedFields.ErrorMessage)
-		return
-	}
+  parsedUrl, errMessage := parseTrackingInputUrl(update.Message.Text)
 
-	err := b.sendMessage(ctx, sendMessageParams{
-		ChatId: chatId,
-		Text: `Мы получили введенные вами данные
-Сейчас бот проверит карточку товара и вернется с результатом`,
-		Reply: reply,
-	})
-	if err != nil {
-		log.Errorf("telegram.handleTrackingFieldsMenu: b.sendMessage: %v", err)
-		return
-	}
+  if errMessage != "" {
+    err := b.sendMessage(ctx, sendMessageParams{
+      ChatId: chatId,
+      Text:   errMessage,
+      Reply:  reply,
+    })
+    if err != nil {
+      log.
+        WithField("chat_id", chatId).
+        WithField("menu", models.TrackingInputUrlMenu).
+        Errorf("b.sendMessage: %v", err)
 
-	trackingMsg, err := b.deps.Tracker.CreateTrackingMessage(ctx, models.TrackingMessageParams{
-		URL:      parsedFields.URL,
-		Sizes:    parsedFields.Sizes,
-		Discount: parsedFields.Discount,
-	})
-	if err != nil {
-		if errors.Is(err, tracker.ErrUnsupportedProductType) {
-			err = b.sendMessage(ctx, sendMessageParams{
-				ChatId: chatId,
-				Text:   `Извините, наш бот пока не умеет работать с данным сайтом`,
-				Reply:  reply,
-			})
-			if err != nil {
-				log.Errorf("telegram.handleTrackingFieldsMenu: b.sendMessage: %v", err)
-			}
-			return
-		}
-		log.Errorf("telegram.handleTrackingFieldsMenu: b.deps.Tracker.CreateTrackingMessage: %v", err)
-		return
-	}
+      return
+    }
+  }
 
-	err = b.sendMessage(ctx, sendMessageParams{
-		ChatId: chatId,
-		Text:   trackingMsg.TextValue,
-		Reply:  reply,
-	})
-	if err != nil {
-		log.Errorf("telegram.handleTrackingFieldsMenu: b.sendMessage: %v", err)
-		return
-	}
+  if err := b.checkProductURL(parsedUrl); err != nil {
+    if errors.Is(err, tracker.ErrUnsupportedProductType) {
+      err = b.sendMessage(ctx, sendMessageParams{
+        ChatId: chatId,
+        Text:   `Извините, бот пока не умеет работать с данным сайтом 😟.`,
+        Reply:  reply,
+      })
+      if err != nil {
+        log.
+          WithField("chat_id", chatId).
+          WithField("menu", models.TrackingInputUrlMenu).
+          Errorf("b.sendMessage: %v", err)
+      }
+      return
+    }
 
-	reply = newReplyKeyboard(models.TrackingFieldsMenu).
-		Row().Button("Подтвердить", bot, telegram.MatchTypeExact, b.handleTrackingConfirmMenu).
-		Row().Button("Отменить", bot, telegram.MatchTypeExact, b.handleStartSilentMenu)
+    log.
+      WithField("chat_id", chatId).
+      WithField("menu", models.TrackingInputUrlMenu).
+      Errorf("checkProductURL: %v", err)
 
-	err = b.sendMessage(ctx, sendMessageParams{
-		ChatId: chatId,
-		Text: `Проверьте полученные от бота данные
-Если все хорошо, подтвердите отслеживание нажав "Подтвердить"
-Если вы передумали или хотите вернуться в главное меню, нажмите "Отменить"`,
-		Reply: reply,
-	})
-	if err != nil {
-		log.Errorf("telegram.handleTrackingFieldsMenu: b.sendMessage: %v", err)
-		return
-	}
+    return
+  }
 
-	err = b.upsertSession(ctx, upsertSessionParams{
-		ChatId:   chatId,
-		Menu:     models.TrackingFieldsMenu,
-		Tracking: newTracking(chatId, parsedFields, *trackingMsg),
-	})
-	if err != nil {
-		log.Errorf("telegram.handleTrackingFieldsMenu: b.upsertSession: %v", err)
-		return
-	}
+  err := b.sendMessage(ctx, sendMessageParams{
+    ChatId: chatId,
+    Text:   `Сейчас бот проверит карточку товара и вернется с результатом 💬.`,
+    Reply:  reply,
+  })
+  if err != nil {
+    log.
+      WithField("chat_id", chatId).
+      WithField("menu", models.TrackingInputUrlMenu).
+      Errorf("b.sendMessage: %v", err)
+
+    return
+  }
+
+  trackingMessage, err := b.createTrackingMessage(ctx, parsedUrl)
+  if err != nil {
+    log.
+      WithField("chat_id", chatId).
+      WithField("menu", models.TrackingInputUrlMenu).
+      Errorf("b.createTrackingMessage: %v", err)
+
+    return
+  }
+
+  err = b.sendMessage(ctx, sendMessageParams{
+    ChatId: chatId,
+    Text:   trackingMessage.TextValue,
+    Reply:  reply,
+  })
+  if err != nil {
+    log.
+      WithField("chat_id", chatId).
+      WithField("menu", models.TrackingInputUrlMenu).
+      Errorf("b.sendMessage: %v", err)
+
+    return
+  }
+
+  sizesValues := lo.Map(trackingMessage.Product.Options, func(option models.ProductOption, _ int) string {
+    return option.Size.Brand.String()
+  })
+  sizesCount := len(trackingMessage.Product.Options)
+
+  switch sizesCount {
+
+  case 0:
+    reply = newReplyKeyboard(models.TrackingInputUrlMenu).
+      Row().Button("Подтвердить 📨", bot, telegram.MatchTypeExact, b.handleTrackingInsertConfirmMenu).
+      Row().Button("Назад 👓", bot, telegram.MatchTypeExact, b.handleStartSilentMenu)
+
+    err = b.sendMessage(ctx, sendMessageParams{
+      ChatId: chatId,
+      Text: `<b>Проверьте полученные от бота данные 📦:</b>
+  - Если все хорошо, подтвердите отслеживание нажав "Подтвердить 📨".
+  - Если вы передумали или хотите вернуться в главное меню, нажмите "Назад 👓".`,
+      Reply: reply,
+    })
+    if err != nil {
+      log.
+        WithField("chat_id", chatId).
+        WithField("menu", models.TrackingInputUrlMenu).
+        Errorf("b.sendMessage: %v", err)
+
+      return
+    }
+
+  default:
+    err = b.sendMessage(ctx, sendMessageParams{
+      ChatId: chatId,
+      Text: `<b>Проверьте полученные от бота данные 📦:</b>
+  - Если все хорошо, выберите подходящие размеры из списка ниже 😉.
+  - Если вы передумали или хотите вернуться в главное меню, нажмите "Назад 👓".`,
+      Reply: reply,
+    })
+    if err != nil {
+      log.
+        WithField("chat_id", chatId).
+        WithField("menu", models.TrackingInputUrlMenu).
+        Errorf("b.sendMessage: %v", err)
+
+      return
+    }
+
+    text := "<b>Доступные размеры 📋:</b>\n"
+
+    for index, label := range sizesValues {
+      text += fmt.Sprintf("%d. %s", index+1, label)
+
+      if index != len(sizesValues)-1 {
+        text += "\n"
+      }
+    }
+    text = strings.TrimSpace(text)
+
+    text += `
+Размеры необходимо вводить через запятую, в точности так, как указано в списке 📋.
+Кстати, вы можете ввести размер, которого нет в списке, если точно знаете, что такой существует 😉.`
+
+    err = b.sendMessage(ctx, sendMessageParams{
+      ChatId: chatId,
+      Text:   text,
+      Reply:  reply,
+    })
+    if err != nil {
+      log.
+        WithField("chat_id", chatId).
+        WithField("menu", models.TrackingInputUrlMenu).
+        Errorf("b.sendMessage: %v", err)
+
+      return
+    }
+  }
+
+  err = b.upsertSession(ctx, upsertSessionParams{
+    ChatId: chatId,
+    Menu:   models.TrackingInputUrlMenu,
+    Tracking: &models.Tracking{
+      ChatId:        chatId,
+      URL:           parsedUrl,
+      ParsedProduct: trackingMessage.Product,
+    },
+  })
+  if err != nil {
+    log.
+      WithField("chat_id", chatId).
+      WithField("menu", models.TrackingInputUrlMenu).
+      Errorf("b.upsertSession: %v", err)
+
+    return
+  }
 }
 
-func (b *Bot) handleTrackingConfirmMenu(ctx context.Context, bot *telegram.Bot, update *tgmodels.Update) {
-	chatId, ok := findChatIdInUpdate(update)
-	if !ok {
-		log.Warnf("telegram.handleTrackingConfirmMenu: findChatIdInUpdate: chat not found")
-		return
-	}
+func (b *Bot) handleTrackingInputSizesMenu(ctx context.Context, bot *telegram.Bot, update *tgmodels.Update) {
+  chatId, ok := findChatIdInUpdate(update)
+  if !ok {
+    log.
+      WithField("update.message", update.Message).
+      WithField("menu", models.TrackingInputSizesMenu).
+      Warn("chat_id not found")
 
-	session, err := b.findSession(ctx, chatId)
-	if err != nil {
-		log.Errorf("telegram.handleTrackingConfirmMenu: b.findSession: %v", err)
-		return
-	}
+    return
+  }
 
-	if session.Message.Menu != models.TrackingFieldsMenu || session.Tracking == nil {
-		log.Warnf("telegram.handleTrackingConfirmMenu: skip. session.Message.Menu: %v. session.TrackingMessage: %v",
-			session.Message.Menu, session.Tracking)
-		return
-	}
+  session, err := b.findSession(ctx, chatId)
+  if err != nil {
+    log.
+      WithField("chat_id", chatId).
+      WithField("menu", models.TrackingInputSizesMenu).
+      Errorf("b.findSession: %v", err)
 
-	err = b.insertTracking(ctx, *session.Tracking)
-	if err != nil {
-		log.Errorf("telegram.handleTrackingConfirmMenu: b.insertTracking: %v", err)
-		return
-	}
+    return
+  }
 
-	reply := newReplyKeyboard(models.TrackingConfirmMenu).
-		Row().Button("Помощь", bot, telegram.MatchTypeExact, b.handleStartMenu).
-		Row().Button("Добавить отслеживание", bot, telegram.MatchTypeExact, b.handleTrackingInsertMenu).
-		Row().Button("Мои отслеживания", bot, telegram.MatchTypeExact, b.handleTrackingListMenu)
+  reply := newReplyKeyboard(models.TrackingInputSizesMenu).
+    Row().Button("Назад 👓", bot, telegram.MatchTypeExact, b.handleStartSilentMenu)
 
-	err = b.sendMessage(ctx, sendMessageParams{
-		ChatId: chatId,
-		Text: `Отслеживание для товара успешно создано
-Мы пришлем вам сообщение, как только получим новости по товару!`,
-		Reply: reply,
-	})
-	if err != nil {
-		log.Errorf("telegram.handleTrackingConfirmMenu: b.sendMessage: %v", err)
-		return
-	}
+  sizesValues, errMessage := parseTrackingInputSizes(update.Message.Text)
 
-	err = b.upsertSession(ctx, upsertSessionParams{
-		ChatId: chatId,
-		Menu:   models.TrackingConfirmMenu,
-	})
-	if err != nil {
-		log.Errorf("telegram.handleTrackingConfirmMenu: b.upsertSession: %v", err)
-		return
-	}
+  if errMessage != "" {
+    err = b.sendMessage(ctx, sendMessageParams{
+      ChatId: chatId,
+      Text:   errMessage,
+      Reply:  reply,
+    })
+    if err != nil {
+      log.
+        WithField("chat_id", chatId).
+        WithField("menu", models.TrackingInputSizesMenu).
+        Errorf("b.sendMessage: %v", err)
+
+      return
+    }
+  }
+
+  session.Tracking.Sizes = models.ParseSizesParams{
+    Values: sizesValues,
+  }
+
+  err = b.upsertSession(ctx, upsertSessionParams{
+    ChatId:   chatId,
+    Menu:     models.TrackingInputSizesMenu,
+    Tracking: session.Tracking,
+  })
+  if err != nil {
+    log.
+      WithField("chat_id", chatId).
+      WithField("menu", models.TrackingInputSizesMenu).
+      Errorf("b.upsertSession: %v", err)
+
+    return
+  }
+
+  reply = newReplyKeyboard(models.TrackingInputSizesMenu).
+    Row().Button("Подтвердить 📨", bot, telegram.MatchTypeExact, b.handleTrackingInsertConfirmMenu).
+    Row().Button("Назад 👓", bot, telegram.MatchTypeExact, b.handleStartSilentMenu)
+
+  text := `<b>Мы зафиксировали введенные размеры: 🫡</b>
+`
+
+  for index, label := range sizesValues {
+    text += fmt.Sprintf("%d. %s", index+1, label)
+
+    if index != len(sizesValues)-1 {
+      text += "\n"
+    }
+  }
+  text = strings.TrimSpace(text)
+
+  text += `
+Далее:
+  - Если все хорошо, подтвердите отслеживание нажав "Подтвердить 📨"
+  - Если вы передумали или хотите вернуться в главное меню, нажмите "Назад 👓"`
+
+  err = b.sendMessage(ctx, sendMessageParams{
+    ChatId: chatId,
+    Text:   text,
+    Reply:  reply,
+  })
+  if err != nil {
+    log.
+      WithField("chat_id", chatId).
+      WithField("menu", models.TrackingInputSizesMenu).
+      Errorf("b.sendMessage: %v", err)
+
+    return
+  }
+}
+
+func (b *Bot) handleTrackingInsertConfirmMenu(ctx context.Context, bot *telegram.Bot, update *tgmodels.Update) {
+  chatId, ok := findChatIdInUpdate(update)
+  if !ok {
+    log.
+      WithField("update.message", update.Message).
+      WithField("menu", models.TrackingInsertConfirmMenu).
+      Warn("chat_id not found")
+
+    return
+  }
+
+  session, err := b.findSession(ctx, chatId)
+  if err != nil {
+    log.
+      WithField("chat_id", chatId).
+      WithField("menu", models.TrackingInsertConfirmMenu).
+      Errorf("b.findSession: %v", err)
+
+    return
+  }
+
+  if session.Tracking == nil {
+    log.
+      WithField("chat_id", chatId).
+      WithField("menu", models.TrackingInsertConfirmMenu).
+      WithField("session.tracking", session.Tracking).
+      Warn("message skipped")
+
+    return
+  }
+
+  err = b.insertTracking(ctx, *session.Tracking)
+  if err != nil {
+    log.
+      WithField("chat_id", chatId).
+      WithField("menu", models.TrackingInsertConfirmMenu).
+      Errorf("b.insertTracking: %v", err)
+
+    return
+  }
+
+  reply := newReplyKeyboard(models.TrackingInsertConfirmMenu).
+    Row().Button("Помощь 📄", bot, telegram.MatchTypeExact, b.handleStartMenu).
+    Row().Button("Добавить отслеживание 📨", bot, telegram.MatchTypeExact, b.handleTrackingInsertMenu).
+    Row().Button("Мои отслеживания ✉️", bot, telegram.MatchTypeExact, b.handleTrackingListMenu)
+
+  err = b.sendMessage(ctx, sendMessageParams{
+    ChatId: chatId,
+    Text: `Отслеживание для товара успешно создано 😉.
+Мы пришлем вам сообщение, как только получим новости по товару 📦!`,
+    Reply: reply,
+  })
+  if err != nil {
+    log.
+      WithField("chat_id", chatId).
+      WithField("menu", models.TrackingInsertConfirmMenu).
+      Errorf("b.sendMessage: %v", err)
+
+    return
+  }
+
+  err = b.upsertSession(ctx, upsertSessionParams{
+    ChatId: chatId,
+    Menu:   models.TrackingInsertConfirmMenu,
+  })
+  if err != nil {
+    log.
+      WithField("chat_id", chatId).
+      WithField("menu", models.TrackingInsertConfirmMenu).
+      Errorf("b.upsertSession: %v", err)
+
+    return
+  }
 }
 
 func (b *Bot) handleTrackingListMenu(ctx context.Context, bot *telegram.Bot, update *tgmodels.Update) {
-	chatId, ok := findChatIdInUpdate(update)
-	if !ok {
-		log.Warnf("telegram.handleTrackingListMenu: findChatIdInUpdate: chat not found")
-		return
-	}
+  chatId, ok := findChatIdInUpdate(update)
+  if !ok {
+    log.
+      WithField("update.message", update.Message).
+      WithField("menu", models.TrackingListMenu).
+      Warn("chat_id not found")
 
-	list, err := b.listTrackings(ctx, chatId)
-	if err != nil {
-		log.Errorf("telegram.handleTrackingListMenu: b.listTrackings: %v", err)
-		return
-	}
+    return
+  }
 
-	for index, tracking := range list {
-		key := chatSelectedTracking{
-			ChatId: chatId,
-			Index:  index,
-		}
-		b.deps.cache.TrackingURLs[key] = tracking.URL
-	}
+  list, err := b.listTrackings(ctx, chatId)
+  if err != nil {
+    log.
+      WithField("chat_id", chatId).
+      WithField("menu", models.TrackingListMenu).
+      Errorf("b.listTrackings: %v", err)
 
-	if len(list) > 0 {
-		slider := b.newTrackingSlider(trackingSliderParams{
-			Bot:       bot,
-			Trackings: list,
-		})
+    return
+  }
 
-		if _, err = slider.Show(ctx, bot, chatId); err != nil {
-			log.Errorf("telegram.handleTrackingListMenu: telegram.Slider.Show: %v", err)
-			return
-		}
-	} else {
-		reply := newReplyKeyboard(models.TrackingListMenu).
-			Row().Button("Помощь", bot, telegram.MatchTypeExact, b.handleStartMenu).
-			Row().Button("Добавить отслеживание", bot, telegram.MatchTypeExact, b.handleTrackingInsertMenu).
-			Row().Button("Мои отслеживания", bot, telegram.MatchTypeExact, b.handleTrackingListMenu)
+  for index, tracking := range list {
+    key := chatSelectedTracking{
+      ChatId: chatId,
+      Index:  index,
+    }
+    b.deps.cache.TrackingURLs[key] = tracking.URL
+  }
 
-		err = b.sendMessage(ctx, sendMessageParams{
-			ChatId: chatId,
-			Text:   `У вас пока нет отслеживаний!`,
-			Reply:  reply,
-		})
-		if err != nil {
-			log.Errorf("telegram.handleTrackingListMenu: b.sendMessage: %v", err)
-			return
-		}
-	}
+  if len(list) > 0 {
+    slider := b.newTrackingSlider(trackingSliderParams{
+      Bot:       bot,
+      Trackings: list,
+    })
 
-	err = b.upsertSession(ctx, upsertSessionParams{
-		ChatId: chatId,
-		Menu:   models.TrackingListMenu,
-	})
-	if err != nil {
-		log.Errorf("telegram.handleTrackingListMenu: b.upsertSession: %v", err)
-		return
-	}
+    if _, err = slider.Show(ctx, bot, chatId); err != nil {
+      log.
+        WithField("chat_id", chatId).
+        WithField("menu", models.TrackingListMenu).
+        Errorf("telegram.Slider.Show: %v", err)
+
+      return
+    }
+  } else {
+    reply := newReplyKeyboard(models.TrackingListMenu).
+      Row().Button("Помощь 📄", bot, telegram.MatchTypeExact, b.handleStartMenu).
+      Row().Button("Добавить отслеживание 📨", bot, telegram.MatchTypeExact, b.handleTrackingInsertMenu).
+      Row().Button("Мои отслеживания ✉️", bot, telegram.MatchTypeExact, b.handleTrackingListMenu)
+
+    err = b.sendMessage(ctx, sendMessageParams{
+      ChatId: chatId,
+      Text:   `У вас пока нет отслеживаний 🥸.`,
+      Reply:  reply,
+    })
+    if err != nil {
+      log.
+        WithField("chat_id", chatId).
+        WithField("menu", models.TrackingListMenu).
+        Errorf("b.sendMessage: %v", err)
+
+      return
+    }
+  }
+
+  err = b.upsertSession(ctx, upsertSessionParams{
+    ChatId: chatId,
+    Menu:   models.TrackingListMenu,
+  })
+  if err != nil {
+    log.
+      WithField("chat_id", chatId).
+      WithField("menu", models.TrackingListMenu).
+      Errorf("b.upsertSession: %v", err)
+
+    return
+  }
 }
 
-func (b *Bot) handleTrackingSelectDeleteMenu(ctx context.Context, bot *telegram.Bot, message tgmodels.MaybeInaccessibleMessage, index int) {
-	chatId, ok := findChatIdInMaybeInaccessible(message)
-	if !ok {
-		log.Warnf("telegram.handleTrackingSelectDeleteMenu: findChatIdInMaybeInaccessible: chat not found")
-		return
-	}
+func (b *Bot) handleTrackingDeleteMenu(ctx context.Context, bot *telegram.Bot, message tgmodels.MaybeInaccessibleMessage, index int) {
+  chatId, ok := findChatIdInMaybeInaccessible(message)
+  if !ok {
+    log.
+      WithField("inaccessible_message", message).
+      WithField("menu", models.TrackingDeleteMenu).
+      Warn("chat_id not found")
 
-	url, ok := b.deps.cache.TrackingURLs[chatSelectedTracking{
-		ChatId: chatId,
-		Index:  index,
-	}]
-	if !ok {
-		log.Errorf("telegram.handleTrackingSelectDeleteMenu: b.deps.Cache.TrackingURLs: not found")
-		return
-	}
+    return
+  }
 
-	tracking, err := b.findTracking(ctx, chatId, url)
-	if err != nil {
-		log.Errorf("telegram.handleTrackingSelectDeleteMenu: b.findTracking: %v", err)
-		return
-	}
+  url, ok := b.deps.cache.TrackingURLs[chatSelectedTracking{
+    ChatId: chatId,
+    Index:  index,
+  }]
+  if !ok {
+    log.
+      WithField("chat_id", chatId).
+      WithField("menu", models.TrackingDeleteMenu).
+      WithField("tracking_index", index).
+      Errorf("tracking url not found in cache")
 
-	reply := newReplyKeyboard(models.TrackingSelectDeleteMenu).
-		Row().Button("Да", bot, telegram.MatchTypeExact, b.handleTrackingDeleteConfirmMenu).
-		Row().Button("Назад", bot, telegram.MatchTypeExact, b.handleTrackingListMenu)
+    return
+  }
 
-	err = b.sendMessage(ctx, sendMessageParams{
-		ChatId: chatId,
-		Text:   `Вы уверены, что хотите удалить отслеживание?`,
-		Reply:  reply,
-	})
-	if err != nil {
-		log.Errorf("telegram.handleTrackingSelectDeleteMenu: b.sendMessage: %v", err)
-		return
-	}
+  tracking, err := b.findTracking(ctx, chatId, url)
+  if err != nil {
+    log.
+      WithField("chat_id", chatId).
+      WithField("menu", models.TrackingDeleteMenu).
+      Errorf("b.findTracking: %v", err)
 
-	err = b.upsertSession(ctx, upsertSessionParams{
-		ChatId:   chatId,
-		Menu:     models.TrackingSelectDeleteMenu,
-		Tracking: tracking,
-	})
-	if err != nil {
-		log.Errorf("telegram.handleTrackingListMenu: b.upsertSession: %v", err)
-		return
-	}
+    return
+  }
+
+  reply := newReplyKeyboard(models.TrackingDeleteMenu).
+    Row().Button("Да 🙂‍↕️", bot, telegram.MatchTypeExact, b.handleTrackingDeleteConfirmMenu).
+    Row().Button("Назад 🙂‍↔️", bot, telegram.MatchTypeExact, b.handleTrackingListMenu)
+
+  err = b.sendMessage(ctx, sendMessageParams{
+    ChatId: chatId,
+    Text:   `Вы уверены, что хотите удалить отслеживание 🗑️?`,
+    Reply:  reply,
+  })
+  if err != nil {
+    log.
+      WithField("chat_id", chatId).
+      WithField("menu", models.TrackingDeleteMenu).
+      Errorf("b.sendMessage: %v", err)
+
+    return
+  }
+
+  err = b.upsertSession(ctx, upsertSessionParams{
+    ChatId:   chatId,
+    Menu:     models.TrackingDeleteMenu,
+    Tracking: tracking,
+  })
+  if err != nil {
+    log.
+      WithField("chat_id", chatId).
+      WithField("menu", models.TrackingDeleteMenu).
+      Errorf("b.upsertSession: %v", err)
+
+    return
+  }
 }
 
-func (b *Bot) handleTrackingSelectSilentMenu(ctx context.Context, bot *telegram.Bot, message tgmodels.MaybeInaccessibleMessage) {
-	chatId, ok := findChatIdInMaybeInaccessible(message)
-	if !ok {
-		log.Warnf("telegram.handleStartSilentMenu: findChatIdInUpdate: chat not found")
-		return
-	}
+func (b *Bot) handleTrackingSilentMenu(ctx context.Context, bot *telegram.Bot, message tgmodels.MaybeInaccessibleMessage) {
+  chatId, ok := findChatIdInMaybeInaccessible(message)
+  if !ok {
+    log.
+      WithField("inaccessible_message", message).
+      WithField("menu", models.StartSilentMenu).
+      Warn("chat_id not found")
 
-	reply := newReplyKeyboard(models.StartSilentMenu).
-		Row().Button("Помощь", bot, telegram.MatchTypeExact, b.handleStartMenu).
-		Row().Button("Добавить отслеживание", bot, telegram.MatchTypeExact, b.handleTrackingInsertMenu).
-		Row().Button("Мои отслеживания", bot, telegram.MatchTypeExact, b.handleTrackingListMenu)
+    return
+  }
 
-	err := b.sendMessage(ctx, sendMessageParams{
-		ChatId: chatId,
-		Text: `Вы вернулись в главное меню бота. 
-Если вам требуется подсказка, нажмите клавишу "Помощь", на виртуальной клавиатуре или наберите /start.`,
-		Reply: reply,
-	})
-	if err != nil {
-		log.Errorf("telegram.handleStartSilentMenu: b.sendMessage: %v", err)
-		return
-	}
+  reply := newReplyKeyboard(models.StartSilentMenu).
+    Row().Button("Помощь 📄", bot, telegram.MatchTypeExact, b.handleStartMenu).
+    Row().Button("Добавить отслеживание 📨", bot, telegram.MatchTypeExact, b.handleTrackingInsertMenu).
+    Row().Button("Мои отслеживания ✉️", bot, telegram.MatchTypeExact, b.handleTrackingListMenu)
 
-	err = b.upsertSession(ctx, upsertSessionParams{
-		ChatId: chatId,
-		Menu:   models.StartSilentMenu,
-	})
-	if err != nil {
-		log.Errorf("telegram.handleStartSilentMenu: b.upsertSession: %v", err)
-		return
-	}
+  err := b.sendMessage(ctx, sendMessageParams{
+    ChatId: chatId,
+    Text:   `Вы вернулись в главное меню бота 👓.`,
+    Reply:  reply,
+  })
+  if err != nil {
+    log.
+      WithField("chat_id", chatId).
+      WithField("menu", models.StartSilentMenu).
+      Errorf("b.sendMessage: %v", err)
+
+    return
+  }
+
+  err = b.upsertSession(ctx, upsertSessionParams{
+    ChatId: chatId,
+    Menu:   models.StartSilentMenu,
+  })
+  if err != nil {
+    log.
+      WithField("chat_id", chatId).
+      WithField("menu", models.StartSilentMenu).
+      Errorf("b.upsertSession: %v", err)
+
+    return
+  }
 }
 
 func (b *Bot) handleTrackingDeleteConfirmMenu(ctx context.Context, bot *telegram.Bot, update *tgmodels.Update) {
-	chatId, ok := findChatIdInUpdate(update)
-	if !ok {
-		log.Warnf("telegram.handleTrackingDeleteConfirmMenu: findChatIdInUpdate: chat not found")
-		return
-	}
+  chatId, ok := findChatIdInUpdate(update)
+  if !ok {
+    log.
+      WithField("update.message", update.Message).
+      WithField("menu", models.TrackingDeleteConfirmMenu).
+      Warn("chat_id not found")
 
-	session, err := b.findSession(ctx, chatId)
-	if err != nil {
-		log.Errorf("telegram.handleTrackingDeleteConfirmMenu: b.findSession: %v", err)
-		return
-	}
+    return
+  }
 
-	_, err = b.deps.Mongodb.Delete(ctx, mongodb.DeleteParams{
-		CommonParams: mongodb.CommonParams{
-			Database:   "outfit",
-			Collection: "trackings",
-		},
-		Filters: map[string]any{
-			"chat_id": session.Tracking.ChatId,
-			"url":     session.Tracking.URL,
-		},
-	})
-	if err != nil {
-		log.Errorf("telegram.handleTrackingDeleteConfirmMenu: b.deps.Mongodb.Delete: %v", err)
-		return
-	}
+  session, err := b.findSession(ctx, chatId)
+  if err != nil {
+    log.
+      WithField("chat_id", chatId).
+      WithField("menu", models.TrackingDeleteConfirmMenu).
+      Errorf("b.findSession: %v", err)
 
-	reply := newReplyKeyboard(models.TrackingConfirmDeleteMenu).
-		Row().Button("Помощь", bot, telegram.MatchTypeExact, b.handleStartMenu).
-		Row().Button("Добавить отслеживание", bot, telegram.MatchTypeExact, b.handleTrackingInsertMenu).
-		Row().Button("Мои отслеживания", bot, telegram.MatchTypeExact, b.handleTrackingListMenu)
+    return
+  }
 
-	err = b.sendMessage(ctx, sendMessageParams{
-		ChatId: chatId,
-		Text:   `Отслеживание успешно удалено!`,
-		Reply:  reply,
-	})
-	if err != nil {
-		log.Errorf("telegram.handleTrackingSelectDeleteMenu: b.sendMessage: %v", err)
-		return
-	}
+  err = b.deleteTracking(ctx, session)
+  if err != nil {
+    log.
+      WithField("chat_id", chatId).
+      WithField("menu", models.TrackingDeleteConfirmMenu).
+      Errorf("b.deleteTracking: %v", err)
 
-	err = b.upsertSession(ctx, upsertSessionParams{
-		ChatId: chatId,
-		Menu:   models.TrackingConfirmDeleteMenu,
-	})
-	if err != nil {
-		log.Errorf("telegram.handleTrackingListMenu: b.upsertSession: %v", err)
-		return
-	}
+    return
+  }
+
+  reply := newReplyKeyboard(models.TrackingDeleteConfirmMenu).
+    Row().Button("Помощь 📄", bot, telegram.MatchTypeExact, b.handleStartMenu).
+    Row().Button("Добавить отслеживание 📨", bot, telegram.MatchTypeExact, b.handleTrackingInsertMenu).
+    Row().Button("Мои отслеживания ✉️", bot, telegram.MatchTypeExact, b.handleTrackingListMenu)
+
+  err = b.sendMessage(ctx, sendMessageParams{
+    ChatId: chatId,
+    Text:   `Отслеживание успешно удалено 🥸!`,
+    Reply:  reply,
+  })
+  if err != nil {
+    log.
+      WithField("chat_id", chatId).
+      WithField("menu", models.TrackingDeleteConfirmMenu).
+      Errorf("b.sendMessage: %v", err)
+
+    return
+  }
+
+  err = b.upsertSession(ctx, upsertSessionParams{
+    ChatId: chatId,
+    Menu:   models.TrackingDeleteConfirmMenu,
+  })
+  if err != nil {
+    log.
+      WithField("chat_id", chatId).
+      WithField("menu", models.TrackingDeleteConfirmMenu).
+      Errorf("b.upsertSession: %v", err)
+
+    return
+  }
 }

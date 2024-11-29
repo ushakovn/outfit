@@ -50,28 +50,14 @@ type ParsedProduct struct {
       ID    string `json:"id"`
       Title string `json:"title"`
     } `json:"seasons"`
-    SeoTail       string `json:"seo_tail"`
-    SizeID        string `json:"size_id"`
-    SizeScaleCode string `json:"size_scale_code"`
-    Sizes         []struct {
-      ShortSku           string      `json:"short_sku"`
-      BrandID            string      `json:"brand_id"`
-      BrandSizeSystem    string      `json:"brand_size_system"`
-      BrandTitle         string      `json:"brand_title"`
-      ID                 string      `json:"id"`
-      IsUniversal        bool        `json:"is_universal"`
-      PrimaryDescription string      `json:"primary_description"`
-      ShipmentType       interface{} `json:"shipment_type"`
-      SizeSystem         string      `json:"size_system"`
-      Sku                string      `json:"sku"`
-      StockQuantity      int64       `json:"stock_quantity"`
-      TaxVat             int         `json:"tax_vat"`
-      Title              string      `json:"title"`
-    } `json:"sizes"`
-    SkuSupplier string        `json:"sku_supplier"`
-    SubsetID    int           `json:"subset_id"`
-    Actions     []interface{} `json:"actions"`
-    Attributes  []struct {
+    SeoTail       string               `json:"seo_tail"`
+    SizeID        string               `json:"size_id"`
+    SizeScaleCode string               `json:"size_scale_code"`
+    Sizes         []*ParsedProductSize `json:"sizes"`
+    SkuSupplier   string               `json:"sku_supplier"`
+    SubsetID      int                  `json:"subset_id"`
+    Actions       []interface{}        `json:"actions"`
+    Attributes    []struct {
       Key   string `json:"key"`
       Title string `json:"title"`
       Value string `json:"value"`
@@ -275,6 +261,22 @@ type ParsedProduct struct {
     Name    string `json:"name"`
     SeoTail string `json:"seo_tail"`
   } `json:"breadcrumbs"`
+}
+
+type ParsedProductSize struct {
+  ShortSku           string      `json:"short_sku"`
+  BrandID            string      `json:"brand_id"`
+  BrandSizeSystem    string      `json:"brand_size_system"`
+  BrandTitle         string      `json:"brand_title"`
+  ID                 string      `json:"id"`
+  IsUniversal        bool        `json:"is_universal"`
+  PrimaryDescription string      `json:"primary_description"`
+  ShipmentType       interface{} `json:"shipment_type"`
+  SizeSystem         string      `json:"size_system"`
+  Sku                string      `json:"sku"`
+  StockQuantity      int64       `json:"stock_quantity"`
+  TaxVat             int         `json:"tax_vat"`
+  Title              string      `json:"title"`
 }
 
 func (p *ParsedProduct) IsDiscountApplicable() bool {

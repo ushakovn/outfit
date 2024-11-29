@@ -1,43 +1,87 @@
 package telegram
 
 import (
-	"context"
+  "context"
+  "strings"
 
-	telegram "github.com/go-telegram/bot"
-	tgmodels "github.com/go-telegram/bot/models"
-	log "github.com/sirupsen/logrus"
-	"github.com/ushakovn/outfit/internal/models"
+  telegram "github.com/go-telegram/bot"
+  tgmodels "github.com/go-telegram/bot/models"
+  log "github.com/sirupsen/logrus"
+  "github.com/ushakovn/outfit/internal/models"
 )
 
 func (b *Bot) registerHandlers(ctx context.Context) {
-	b.registerStartHandler(ctx)
-	b.registerTrackingFieldsMenuHandler(ctx)
+  b.registerStartHandler(ctx)
+  b.registerTrackingInputUrlMenuHandler(ctx)
+  b.registerTrackingInputSizesMenuHandler(ctx)
 }
 
 func (b *Bot) registerStartHandler(_ context.Context) {
-	b.deps.Telegram.RegisterHandler(
-		telegram.HandlerTypeMessageText, "/start",
-		telegram.MatchTypeExact, b.handleStartMenu,
-	)
+  b.deps.Telegram.RegisterHandler(
+    telegram.HandlerTypeMessageText, "/start",
+    telegram.MatchTypeExact, b.handleStartMenu,
+  )
 }
 
-func (b *Bot) registerTrackingFieldsMenuHandler(ctx context.Context) {
-	b.deps.Telegram.RegisterHandlerMatchFunc(
-		func(update *tgmodels.Update) bool {
-			chatId, ok := findChatIdInUpdate(update)
-			if !ok {
-				return false
-			}
+func (b *Bot) registerTrackingInputUrlMenuHandler(ctx context.Context) {
+  b.deps.Telegram.RegisterHandlerMatchFunc(
+    func(update *tgmodels.Update) bool {
+      if isBackButtonMessage(update) {
+        return false
+      }
 
-			session, err := b.findSession(ctx, chatId)
-			if err != nil {
-				log.Errorf("telegram.handleTrackingFieldsMenu: findSession: %v", err)
+      chatId, ok := findChatIdInUpdate(update)
+      if !ok {
+        return false
+      }
 
-				return false
-			}
+      session, err := b.findSession(ctx, chatId)
+      if err != nil {
+        log.
+          WithField("chat_id", chatId).
+          WithField("previous_menu", models.TrackingInsertMenu).
+          Errorf("b.findSession: %v", err)
 
-			return session.Message.Menu == models.TrackingInsertMenu && update.Message.Text != "Назад"
-		},
-		b.handleTrackingFieldsMenu,
-	)
+        return false
+      }
+
+      return session.Message.Menu == models.TrackingInsertMenu
+    },
+    b.handleTrackingInputUrlMenu,
+  )
+}
+
+func (b *Bot) registerTrackingInputSizesMenuHandler(ctx context.Context) {
+  b.deps.Telegram.RegisterHandlerMatchFunc(
+    func(update *tgmodels.Update) bool {
+      if isBackButtonMessage(update) {
+        return false
+      }
+
+      chatId, ok := findChatIdInUpdate(update)
+      if !ok {
+        return false
+      }
+
+      session, err := b.findSession(ctx, chatId)
+      if err != nil {
+        log.
+          WithField("chat_id", chatId).
+          WithField("previous_menu", models.TrackingInputUrlMenu).
+          Errorf("b.findSession: %v", err)
+
+        return false
+      }
+
+      return session.Message.Menu == models.TrackingInputUrlMenu
+    },
+    b.handleTrackingInputSizesMenu,
+  )
+}
+
+func isBackButtonMessage(update *tgmodels.Update) bool {
+  if update == nil || update.Message == nil {
+    return false
+  }
+  return strings.Contains(update.Message.Text, "Назад")
 }
