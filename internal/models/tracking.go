@@ -7,15 +7,3 @@ type Tracking struct {
   Discount      *ParseDiscountParams `bson:"discount" json:"discount"`
   ParsedProduct Product              `bson:"parsed_product" json:"parsed_product"`
 }
-
-type TrackingMessage struct {
-  TextValue   string      `bson:"text_value" json:"text_value"`
-  Product     Product     `bson:"product" json:"product"`
-  ProductDiff ProductDiff `bson:"product_diff" json:"product_diff"`
-}
-
-type TrackingMessageParams struct {
-  URL      string
-  Sizes    ParseSizesParams
-  Discount *ParseDiscountParams
-}

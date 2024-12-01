@@ -7,10 +7,10 @@ import (
 
   "github.com/go-resty/resty/v2"
   log "github.com/sirupsen/logrus"
+  "github.com/ushakovn/outfit/internal/app/tracker"
+  "github.com/ushakovn/outfit/internal/deps/parsers/lamoda"
+  "github.com/ushakovn/outfit/internal/deps/storage/mongodb"
   "github.com/ushakovn/outfit/internal/models"
-  "github.com/ushakovn/outfit/internal/parser/lamoda"
-  "github.com/ushakovn/outfit/internal/provider/mongodb"
-  "github.com/ushakovn/outfit/internal/tracker"
   "github.com/ushakovn/outfit/pkg/parser/xpath"
 
   _ "github.com/ushakovn/boiler/pkg/app"
@@ -21,7 +21,7 @@ var productType models.ProductType
 func main() {
   ctx := context.Background()
 
-  flag.StringVar(&productType, "type", "", "tracker product type")
+  flag.StringVar(&productType, "type", "", "product type")
   flag.Parse()
 
   mongoClient, err := mongodb.NewClient(ctx,
@@ -48,19 +48,14 @@ func main() {
     Xpath: xpathParser,
   })
 
-  trackerClient := tracker.NewTracker(
-    tracker.Config{
-      IsCron:      true,
-      ProductType: productType,
+  trackerCron := tracker.NewTrackerCron(productType, tracker.Dependencies{
+    Mongodb: mongoClient,
+    Parsers: map[models.ProductType]models.Parser{
+      models.ProductTypeLamoda: lamodaParser,
     },
-    tracker.Dependencies{
-      Mongodb: mongoClient,
-      Parsers: map[models.ProductType]models.Parser{
-        models.ProductTypeLamoda: lamodaParser,
-      },
-    })
+  })
 
-  if err = trackerClient.StartTrackingHandle(ctx); err != nil {
-    log.Fatalf("trackerClient.StartTrackingHandle: %v", err)
+  if err = trackerCron.Start(ctx); err != nil {
+    log.Fatalf("trackerCron.Start: %v", err)
   }
 }

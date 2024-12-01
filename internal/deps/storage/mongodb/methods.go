@@ -4,95 +4,14 @@ import (
   "context"
   "errors"
   "fmt"
-  "net/http"
   "reflect"
-  "strings"
 
-  "github.com/go-playground/validator/v10"
   log "github.com/sirupsen/logrus"
   "go.mongodb.org/mongo-driver/bson"
   "go.mongodb.org/mongo-driver/mongo"
   "go.mongodb.org/mongo-driver/mongo/options"
+  "go.mongodb.org/mongo-driver/mongo/writeconcern"
 )
-
-var ErrNotFound = errors.New("document not found")
-
-type Client struct {
-  client *mongo.Client
-}
-
-type Config struct {
-  Host           string          `validate:"required"`
-  Port           string          `validate:"required"`
-  Authentication *Authentication `validate:"required"`
-}
-
-type Authentication struct {
-  User     string `validate:"required"`
-  Password string `validate:"required"`
-}
-
-func (c *Config) Validate() error {
-  return validator.New().Struct(c)
-}
-
-type Dependencies struct {
-  Client *http.Client `validate:"required"`
-}
-
-func (c *Dependencies) Validate() error {
-  return validator.New().Struct(c)
-}
-
-func (c *Config) ConnectionString() string {
-  sb := strings.Builder{}
-
-  write := func(s string) {
-    sb.WriteString(s)
-  }
-
-  sb.WriteString("mongodb://")
-
-  if c.Authentication != nil {
-    write(c.Authentication.User)
-    write(":")
-    write(c.Authentication.Password)
-    write("@")
-  }
-
-  write(c.Host)
-  write(":")
-  write(c.Port)
-
-  return sb.String()
-}
-
-func NewClient(ctx context.Context, config Config, deps Dependencies) (*Client, error) {
-  if err := deps.Validate(); err != nil {
-    return nil, fmt.Errorf("invalid dependencies: %w", err)
-  }
-  if err := config.Validate(); err != nil {
-    return nil, fmt.Errorf("invalid config: %w", err)
-  }
-
-  opts := options.
-    Client().
-    SetHTTPClient(deps.Client).
-    ApplyURI(config.ConnectionString())
-
-  client, err := mongo.Connect(ctx, opts)
-  if err != nil {
-    return nil, fmt.Errorf("mongo.Connect: %w", err)
-  }
-
-  if err = client.Ping(ctx, nil); err != nil {
-    return nil, fmt.Errorf("client.Ping: %w", err)
-  }
-
-  return &Client{
-    client: client,
-  }, nil
-}
 
 type CommonParams struct {
   Database   string
@@ -130,8 +49,12 @@ func (c *Client) Scan(ctx context.Context, params ScanParams) error {
   }()
 
   for cursor.Next(ctx) {
-    typ := reflect.TypeOf(params.StructType)
-    doc := reflect.New(typ).Interface()
+    doc := any(make(map[string]any))
+
+    if params.StructType != nil {
+      typ := reflect.TypeOf(params.StructType)
+      doc = reflect.New(typ).Interface()
+    }
 
     if err = cursor.Decode(doc); err != nil {
       return fmt.Errorf("cursor.Decode: %T: %w", doc, err)
@@ -290,8 +213,12 @@ func (c *Client) Find(ctx context.Context, params FindParams) ([]any, error) {
   out := make([]any, 0, params.Limit)
 
   for cursor.Next(ctx) {
-    typ := reflect.TypeOf(params.StructType)
-    doc := reflect.New(typ).Interface()
+    doc := any(make(map[string]any))
+
+    if params.StructType != nil {
+      typ := reflect.TypeOf(params.StructType)
+      doc = reflect.New(typ).Interface()
+    }
 
     if err = cursor.Decode(doc); err != nil {
       return nil, fmt.Errorf("cursor.Decode: %T: %w", doc, err)
@@ -328,54 +255,30 @@ func (c *Client) Delete(ctx context.Context, params DeleteParams) (count int64, 
   return res.DeletedCount, nil
 }
 
-func makeBsonDUpdates(value any) bson.D {
-  updates := bson.D{}
+// WithTransaction работает только с replica set.
+func (c *Client) WithTransaction(ctx context.Context, callback func(txCtx context.Context) error) error {
+  writeConcern := writeconcern.Majority()
 
-  typ := reflect.TypeOf(value)
+  txOptions := options.
+    Transaction().
+    SetWriteConcern(writeConcern)
 
-  values := reflect.ValueOf(value)
+  session, err := c.client.StartSession()
+  if err != nil {
+    return fmt.Errorf("c.client.StartSession: %w", err)
+  }
+  defer session.EndSession(ctx)
 
-  for i := 1; i < typ.NumField(); i++ {
-    field := typ.Field(i)
+  wrappedCallback := func(sessionCtx mongo.SessionContext) (any, error) {
+    err = callback(sessionCtx)
 
-    val := values.Field(i)
-    tag := field.Tag.Get("json")
-
-    if !isZeroType(val) {
-      update := bson.E{
-        Key:   tag,
-        Value: val.Interface(),
-      }
-      updates = append(updates, update)
-    }
+    return nil, err
   }
 
-  return bson.D{{
-    Key:   "$set",
-    Value: updates,
-  }}
-}
-
-func makeBsonDFilters(kv map[string]any) bson.D {
-  out := bson.D{}
-
-  for key, value := range kv {
-    out = append(out, bson.E{
-      Key:   key,
-      Value: value,
-    })
+  _, err = session.WithTransaction(ctx, wrappedCallback, txOptions)
+  if err != nil {
+    return fmt.Errorf("session.WithTransaction: %w", err)
   }
 
-  return out
-}
-
-func isZeroType(value reflect.Value) bool {
-  zero := reflect.Zero(value.Type()).Interface()
-
-  switch value.Kind() {
-  case reflect.Slice, reflect.Array, reflect.Chan, reflect.Map:
-    return value.Len() == 0
-  default:
-    return reflect.DeepEqual(zero, value.Interface())
-  }
+  return nil
 }

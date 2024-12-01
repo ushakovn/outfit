@@ -10,20 +10,20 @@ import (
   "github.com/ushakovn/outfit/internal/models"
 )
 
-func (b *Bot) registerHandlers(ctx context.Context) {
+func (b *Transport) registerHandlers(ctx context.Context) {
   b.registerStartHandler(ctx)
   b.registerTrackingInputUrlMenuHandler(ctx)
   b.registerTrackingInputSizesMenuHandler(ctx)
 }
 
-func (b *Bot) registerStartHandler(_ context.Context) {
+func (b *Transport) registerStartHandler(_ context.Context) {
   b.deps.Telegram.RegisterHandler(
     telegram.HandlerTypeMessageText, "/start",
     telegram.MatchTypeExact, b.handleStartMenu,
   )
 }
 
-func (b *Bot) registerTrackingInputUrlMenuHandler(ctx context.Context) {
+func (b *Transport) registerTrackingInputUrlMenuHandler(ctx context.Context) {
   b.deps.Telegram.RegisterHandlerMatchFunc(
     func(update *tgmodels.Update) bool {
       if isBackButtonMessage(update) {
@@ -51,7 +51,7 @@ func (b *Bot) registerTrackingInputUrlMenuHandler(ctx context.Context) {
   )
 }
 
-func (b *Bot) registerTrackingInputSizesMenuHandler(ctx context.Context) {
+func (b *Transport) registerTrackingInputSizesMenuHandler(ctx context.Context) {
   b.deps.Telegram.RegisterHandlerMatchFunc(
     func(update *tgmodels.Update) bool {
       if isBackButtonMessage(update) {

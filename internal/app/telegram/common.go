@@ -13,14 +13,14 @@ import (
   tgslider "github.com/go-telegram/ui/slider"
   "github.com/samber/lo"
   log "github.com/sirupsen/logrus"
-  "github.com/ushakovn/outfit/internal/message"
+  "github.com/ushakovn/outfit/internal/app/telegram/assets"
+  "github.com/ushakovn/outfit/internal/app/tracker"
+  "github.com/ushakovn/outfit/internal/deps/storage/mongodb"
   "github.com/ushakovn/outfit/internal/models"
-  "github.com/ushakovn/outfit/internal/provider/mongodb"
-  "github.com/ushakovn/outfit/internal/telegram/assets"
   "github.com/ushakovn/outfit/pkg/validator"
 )
 
-func (b *Bot) findSession(ctx context.Context, chatID int64) (*models.Session, error) {
+func (b *Transport) findSession(ctx context.Context, chatID int64) (*models.Session, error) {
   res, err := b.deps.Mongodb.Get(ctx, mongodb.GetParams{
     CommonParams: mongodb.CommonParams{
       Database:   "outfit",
@@ -43,7 +43,7 @@ func (b *Bot) findSession(ctx context.Context, chatID int64) (*models.Session, e
   return session, nil
 }
 
-func (b *Bot) deleteTracking(ctx context.Context, session *models.Session) error {
+func (b *Transport) deleteTracking(ctx context.Context, session *models.Session) error {
   _, err := b.deps.Mongodb.Delete(ctx, mongodb.DeleteParams{
     CommonParams: mongodb.CommonParams{
       Database:   "outfit",
@@ -61,7 +61,7 @@ func (b *Bot) deleteTracking(ctx context.Context, session *models.Session) error
   return nil
 }
 
-func (b *Bot) insertTracking(ctx context.Context, tracking models.Tracking) error {
+func (b *Transport) insertTracking(ctx context.Context, tracking models.Tracking) error {
   _, err := b.deps.Mongodb.Insert(ctx, mongodb.InsertParams{
     CommonParams: mongodb.CommonParams{
       Database:   "outfit",
@@ -82,7 +82,7 @@ type sendMessageParams struct {
   Reply  tgmodels.ReplyMarkup
 }
 
-func (b *Bot) sendMessage(ctx context.Context, params sendMessageParams) error {
+func (b *Transport) sendMessage(ctx context.Context, params sendMessageParams) error {
   _, err := b.deps.Telegram.SendMessage(ctx, &telegram.SendMessageParams{
     ChatID:      params.ChatId,
     Text:        params.Text,
@@ -106,7 +106,7 @@ type upsertSessionParams struct {
   Tracking  *models.Tracking
 }
 
-func (b *Bot) upsertSession(ctx context.Context, params upsertSessionParams) error {
+func (b *Transport) upsertSession(ctx context.Context, params upsertSessionParams) error {
   session := models.Session{
     ChatId: params.ChatId,
     Message: models.SessionMessage{
@@ -137,7 +137,7 @@ func (b *Bot) upsertSession(ctx context.Context, params upsertSessionParams) err
   return nil
 }
 
-func (b *Bot) findTracking(ctx context.Context, chatId int64, url string) (*models.Tracking, error) {
+func (b *Transport) findTracking(ctx context.Context, chatId int64, url string) (*models.Tracking, error) {
   res, err := b.deps.Mongodb.Get(ctx, mongodb.GetParams{
     CommonParams: mongodb.CommonParams{
       Database:   "outfit",
@@ -161,7 +161,7 @@ func (b *Bot) findTracking(ctx context.Context, chatId int64, url string) (*mode
   return tracking, nil
 }
 
-func (b *Bot) listTrackings(ctx context.Context, chatID int64) ([]*models.Tracking, error) {
+func (b *Transport) listTrackings(ctx context.Context, chatID int64) ([]*models.Tracking, error) {
   res, err := b.deps.Mongodb.Find(ctx, mongodb.FindParams{
     CommonParams: mongodb.CommonParams{
       Database:   "outfit",
@@ -191,7 +191,7 @@ func (b *Bot) listTrackings(ctx context.Context, chatID int64) ([]*models.Tracki
   return list, nil
 }
 
-func (b *Bot) checkProductURL(url string) error {
+func (b *Transport) checkProductURL(url string) error {
   if err := b.deps.Tracker.CheckProductURL(url); err != nil {
     return fmt.Errorf("b.deps.Tracker.CheckProductURL: %w", err)
   }
@@ -199,15 +199,15 @@ func (b *Bot) checkProductURL(url string) error {
   return nil
 }
 
-func (b *Bot) createTrackingMessage(ctx context.Context, url string) (*models.TrackingMessage, error) {
-  trackingMessage, err := b.deps.Tracker.CreateTrackingMessage(ctx, models.TrackingMessageParams{
+func (b *Transport) createMessage(ctx context.Context, url string) (*models.SendableMessage, error) {
+  message, err := b.deps.Tracker.CreateMessage(ctx, tracker.CreateMessageParams{
     URL: url,
   })
   if err != nil {
-    return nil, fmt.Errorf("b.deps.Tracker.CreateTrackingMessage: %w", err)
+    return nil, fmt.Errorf("b.deps.Tracker.CreateMessage: %w", err)
   }
 
-  return trackingMessage, nil
+  return message, nil
 }
 
 func parseTrackingInputUrl(fields string) (parsedUrl string, errMessage string) {
@@ -268,16 +268,6 @@ func findChatIdInMaybeInaccessible(msg tgmodels.MaybeInaccessibleMessage) (int64
   return 0, false
 }
 
-func newTracking(chatID int64, fields parsedTrackingFields, msg models.TrackingMessage) *models.Tracking {
-  return &models.Tracking{
-    ChatId:        chatID,
-    URL:           fields.URL,
-    Sizes:         fields.Sizes,
-    Discount:      fields.Discount,
-    ParsedProduct: msg.Product,
-  }
-}
-
 func newInlineKeyboard(bot *telegram.Bot, prefix string) *tginline.Keyboard {
   return tginline.New(bot,
     tginline.OnError(func(err error) {
@@ -297,19 +287,20 @@ func newReplyKeyboard(prefix string) *tgreply.ReplyKeyboard {
 }
 
 type trackingSliderParams struct {
+  ChatId    int64
   Bot       *telegram.Bot
   Trackings []*models.Tracking
 }
 
-func (b *Bot) newTrackingSlider(params trackingSliderParams) *tgslider.Slider {
+func (b *Transport) newTrackingSlider(params trackingSliderParams) *tgslider.Slider {
   slides := make([]tgslider.Slide, 0, len(params.Trackings))
 
   for _, tracking := range params.Trackings {
-    res := message.Do().
+    res := models.Sendable(params.ChatId).
       SetTrackingPtr(tracking).
       BuildTrackingMessage()
 
-    if !res.IsSendable {
+    if !res.IsValid {
       continue
     }
 

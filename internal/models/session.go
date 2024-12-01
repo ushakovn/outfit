@@ -13,8 +13,6 @@ const (
   TrackingInputDiscountMenu SessionMenu = "tracking_input_discount_menu"
   TrackingDeleteMenu        SessionMenu = "tracking_delete_menu"
   TrackingDeleteConfirmMenu SessionMenu = "tracking_delete_confirm_menu"
-  // Deprecated: do not use.
-  TrackingFieldsMenu SessionMenu = "tracking_fields_menu"
 )
 
 type SessionMenu = string

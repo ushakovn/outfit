@@ -10,7 +10,7 @@ import (
 
   set "github.com/deckarep/golang-set/v2"
   "github.com/ushakovn/outfit/internal/models"
-  "github.com/ushakovn/outfit/pkg/extension"
+  "github.com/ushakovn/outfit/pkg/ext"
   "github.com/ushakovn/outfit/pkg/money"
   "github.com/ushakovn/outfit/pkg/parser/xpath"
   "github.com/ushakovn/outfit/pkg/validator"
@@ -216,7 +216,7 @@ func makeProductOption(parsed *ParsedProductSize, price models.ProductPriceOptio
 func makeProductImageURL(parsed *ParsedProduct) string {
   thumbnail := strings.TrimSpace(parsed.Product.Thumbnail)
 
-  if !extension.IsImage(thumbnail) {
+  if !ext.IsImage(thumbnail) {
     return ""
   }
 

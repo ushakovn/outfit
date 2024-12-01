@@ -8,14 +8,14 @@ import (
   "syscall"
 
   "github.com/go-resty/resty/v2"
-  "github.com/go-telegram/bot"
+  tgbot "github.com/go-telegram/bot"
   log "github.com/sirupsen/logrus"
+  "github.com/ushakovn/outfit/internal/app/telegram"
+  "github.com/ushakovn/outfit/internal/app/tracker"
   "github.com/ushakovn/outfit/internal/config"
+  "github.com/ushakovn/outfit/internal/deps/parsers/lamoda"
+  "github.com/ushakovn/outfit/internal/deps/storage/mongodb"
   "github.com/ushakovn/outfit/internal/models"
-  "github.com/ushakovn/outfit/internal/parser/lamoda"
-  "github.com/ushakovn/outfit/internal/provider/mongodb"
-  "github.com/ushakovn/outfit/internal/telegram"
-  "github.com/ushakovn/outfit/internal/tracker"
   "github.com/ushakovn/outfit/pkg/parser/xpath"
 
   _ "github.com/ushakovn/boiler/pkg/app"
@@ -48,25 +48,25 @@ func main() {
     Xpath: xpathParser,
   })
 
-  trackerClient := tracker.NewTracker(tracker.Config{}, tracker.Dependencies{
+  trackerClient := tracker.NewTracker(tracker.Dependencies{
     Mongodb: mongoClient,
     Parsers: map[models.ProductType]models.Parser{
       models.ProductTypeLamoda: lamodaParser,
     },
   })
 
-  telegramClient, err := bot.New(config.Get(ctx, config.TelegramToken).String())
+  telegramClient, err := tgbot.New(config.Get(ctx, config.TelegramToken).String())
   if err != nil {
     log.Fatalf("bot.New: %v", err)
   }
 
-  telegramBot := telegram.NewBot(telegram.Dependencies{
+  telegramTransport := telegram.NewTransport(telegram.Dependencies{
     Tracker:  trackerClient,
     Telegram: telegramClient,
     Mongodb:  mongoClient,
   })
 
-  telegramBot.Start(ctx)
+  telegramTransport.Start(ctx)
 
   exitSignal := make(chan os.Signal)
   signal.Notify(exitSignal, syscall.SIGINT, syscall.SIGTERM)

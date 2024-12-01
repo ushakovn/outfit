@@ -10,11 +10,11 @@ import (
   tgmodels "github.com/go-telegram/bot/models"
   "github.com/samber/lo"
   log "github.com/sirupsen/logrus"
+  "github.com/ushakovn/outfit/internal/app/tracker"
   "github.com/ushakovn/outfit/internal/models"
-  "github.com/ushakovn/outfit/internal/tracker"
 )
 
-func (b *Bot) handleStartMenu(ctx context.Context, bot *telegram.Bot, update *tgmodels.Update) {
+func (b *Transport) handleStartMenu(ctx context.Context, bot *telegram.Bot, update *tgmodels.Update) {
   chatId, ok := findChatIdInUpdate(update)
   if !ok {
     log.
@@ -67,7 +67,7 @@ func (b *Bot) handleStartMenu(ctx context.Context, bot *telegram.Bot, update *tg
   }
 }
 
-func (b *Bot) handleStartSilentMenu(ctx context.Context, bot *telegram.Bot, update *tgmodels.Update) {
+func (b *Transport) handleStartSilentMenu(ctx context.Context, bot *telegram.Bot, update *tgmodels.Update) {
   chatId, ok := findChatIdInUpdate(update)
   if !ok {
     log.
@@ -111,7 +111,7 @@ func (b *Bot) handleStartSilentMenu(ctx context.Context, bot *telegram.Bot, upda
   }
 }
 
-func (b *Bot) handleTrackingInsertMenu(ctx context.Context, bot *telegram.Bot, update *tgmodels.Update) {
+func (b *Transport) handleTrackingInsertMenu(ctx context.Context, bot *telegram.Bot, update *tgmodels.Update) {
   chatId, ok := findChatIdInUpdate(update)
   if !ok {
     log.
@@ -153,7 +153,7 @@ func (b *Bot) handleTrackingInsertMenu(ctx context.Context, bot *telegram.Bot, u
   }
 }
 
-func (b *Bot) handleTrackingInputUrlMenu(ctx context.Context, bot *telegram.Bot, update *tgmodels.Update) {
+func (b *Transport) handleTrackingInputUrlMenu(ctx context.Context, bot *telegram.Bot, update *tgmodels.Update) {
   chatId, ok := findChatIdInUpdate(update)
   if !ok {
     log.
@@ -223,19 +223,19 @@ func (b *Bot) handleTrackingInputUrlMenu(ctx context.Context, bot *telegram.Bot,
     return
   }
 
-  trackingMessage, err := b.createTrackingMessage(ctx, parsedUrl)
+  message, err := b.createMessage(ctx, parsedUrl)
   if err != nil {
     log.
       WithField("chat_id", chatId).
       WithField("menu", models.TrackingInputUrlMenu).
-      Errorf("b.createTrackingMessage: %v", err)
+      Errorf("b.createMessage: %v", err)
 
     return
   }
 
   err = b.sendMessage(ctx, sendMessageParams{
     ChatId: chatId,
-    Text:   trackingMessage.TextValue,
+    Text:   message.TextValue,
     Reply:  reply,
   })
   if err != nil {
@@ -247,10 +247,10 @@ func (b *Bot) handleTrackingInputUrlMenu(ctx context.Context, bot *telegram.Bot,
     return
   }
 
-  sizesValues := lo.Map(trackingMessage.Product.Options, func(option models.ProductOption, _ int) string {
+  sizesValues := lo.Map(message.Product.Options, func(option models.ProductOption, _ int) string {
     return option.Size.Brand.String()
   })
-  sizesCount := len(trackingMessage.Product.Options)
+  sizesCount := len(message.Product.Options)
 
   switch sizesCount {
 
@@ -328,7 +328,7 @@ func (b *Bot) handleTrackingInputUrlMenu(ctx context.Context, bot *telegram.Bot,
     Tracking: &models.Tracking{
       ChatId:        chatId,
       URL:           parsedUrl,
-      ParsedProduct: trackingMessage.Product,
+      ParsedProduct: message.Product,
     },
   })
   if err != nil {
@@ -341,7 +341,7 @@ func (b *Bot) handleTrackingInputUrlMenu(ctx context.Context, bot *telegram.Bot,
   }
 }
 
-func (b *Bot) handleTrackingInputSizesMenu(ctx context.Context, bot *telegram.Bot, update *tgmodels.Update) {
+func (b *Transport) handleTrackingInputSizesMenu(ctx context.Context, bot *telegram.Bot, update *tgmodels.Update) {
   chatId, ok := findChatIdInUpdate(update)
   if !ok {
     log.
@@ -437,7 +437,7 @@ func (b *Bot) handleTrackingInputSizesMenu(ctx context.Context, bot *telegram.Bo
   }
 }
 
-func (b *Bot) handleTrackingInsertConfirmMenu(ctx context.Context, bot *telegram.Bot, update *tgmodels.Update) {
+func (b *Transport) handleTrackingInsertConfirmMenu(ctx context.Context, bot *telegram.Bot, update *tgmodels.Update) {
   chatId, ok := findChatIdInUpdate(update)
   if !ok {
     log.
@@ -512,7 +512,7 @@ func (b *Bot) handleTrackingInsertConfirmMenu(ctx context.Context, bot *telegram
   }
 }
 
-func (b *Bot) handleTrackingListMenu(ctx context.Context, bot *telegram.Bot, update *tgmodels.Update) {
+func (b *Transport) handleTrackingListMenu(ctx context.Context, bot *telegram.Bot, update *tgmodels.Update) {
   chatId, ok := findChatIdInUpdate(update)
   if !ok {
     log.
@@ -543,6 +543,7 @@ func (b *Bot) handleTrackingListMenu(ctx context.Context, bot *telegram.Bot, upd
 
   if len(list) > 0 {
     slider := b.newTrackingSlider(trackingSliderParams{
+      ChatId:    chatId,
       Bot:       bot,
       Trackings: list,
     })
@@ -590,7 +591,7 @@ func (b *Bot) handleTrackingListMenu(ctx context.Context, bot *telegram.Bot, upd
   }
 }
 
-func (b *Bot) handleTrackingDeleteMenu(ctx context.Context, bot *telegram.Bot, message tgmodels.MaybeInaccessibleMessage, index int) {
+func (b *Transport) handleTrackingDeleteMenu(ctx context.Context, bot *telegram.Bot, message tgmodels.MaybeInaccessibleMessage, index int) {
   chatId, ok := findChatIdInMaybeInaccessible(message)
   if !ok {
     log.
@@ -610,7 +611,7 @@ func (b *Bot) handleTrackingDeleteMenu(ctx context.Context, bot *telegram.Bot, m
       WithField("chat_id", chatId).
       WithField("menu", models.TrackingDeleteMenu).
       WithField("tracking_index", index).
-      Errorf("tracking url not found in cache")
+      Errorf("tracking url not found in Cache")
 
     return
   }
@@ -658,7 +659,7 @@ func (b *Bot) handleTrackingDeleteMenu(ctx context.Context, bot *telegram.Bot, m
   }
 }
 
-func (b *Bot) handleTrackingSilentMenu(ctx context.Context, bot *telegram.Bot, message tgmodels.MaybeInaccessibleMessage) {
+func (b *Transport) handleTrackingSilentMenu(ctx context.Context, bot *telegram.Bot, message tgmodels.MaybeInaccessibleMessage) {
   chatId, ok := findChatIdInMaybeInaccessible(message)
   if !ok {
     log.
@@ -702,7 +703,7 @@ func (b *Bot) handleTrackingSilentMenu(ctx context.Context, bot *telegram.Bot, m
   }
 }
 
-func (b *Bot) handleTrackingDeleteConfirmMenu(ctx context.Context, bot *telegram.Bot, update *tgmodels.Update) {
+func (b *Transport) handleTrackingDeleteConfirmMenu(ctx context.Context, bot *telegram.Bot, update *tgmodels.Update) {
   chatId, ok := findChatIdInUpdate(update)
   if !ok {
     log.

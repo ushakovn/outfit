@@ -3,7 +3,7 @@ package money
 import "github.com/leekchan/accounting"
 
 var acc = accounting.Accounting{
-  Symbol:    "РУБ ",
+  Symbol:    "₽ ",
   Precision: 2,
   Thousand:  " ",
   Decimal:   ".",
