@@ -3,6 +3,7 @@ package models
 import (
   "encoding/json"
   "fmt"
+  "math"
   "net/url"
   "strings"
   "time"
@@ -78,7 +79,9 @@ type ProductOptionDiff struct {
 }
 
 type ProductStockDiff struct {
+  OldQuantity     int64 `bson:"old_quantity" json:"old_quantity"`
   Quantity        int64 `bson:"quantity" json:"quantity"`
+  IsSellUp        bool  `bson:"is_sell_up" json:"is_sell_up"`
   IsAvailable     bool  `bson:"is_available" json:"is_available"`
   IsComeToInStock bool  `bson:"is_come_to_in_stock" json:"is_come_to_in_stock"`
 }
@@ -89,10 +92,11 @@ type ProductPriceOptionsDiff struct {
 }
 
 type ProductPriceDiff struct {
-  IsLower bool   `bson:"is_lower" json:"is_lower"`
-  New     string `bson:"new" json:"new"`
-  Old     string `bson:"old" json:"old"`
-  Diff    string `bson:"diff" json:"diff"`
+  IsLower  bool   `bson:"is_lower" json:"is_lower"`
+  IsHigher bool   `bson:"is_higher" json:"is_higher"`
+  New      string `bson:"new" json:"new"`
+  Old      string `bson:"old" json:"old"`
+  Diff     string `bson:"diff" json:"diff"`
 }
 
 func NewProductDiff(stored, parsed Product) *ProductDiff {
@@ -109,18 +113,22 @@ func NewProductDiff(stored, parsed Product) *ProductDiff {
     }
 
     stockDiff := ProductStockDiff{
+      OldQuantity:     storedOption.Stock.Quantity,
       Quantity:        parsedOption.Stock.Quantity,
+      IsSellUp:        parsedOption.Stock.Quantity <= 5 && parsedOption.Stock.Quantity < storedOption.Stock.Quantity,
       IsAvailable:     parsedOption.Stock.Quantity > 0,
       IsComeToInStock: parsedOption.Stock.Quantity > 0 && storedOption.Stock.Quantity <= 0,
     }
 
     priceDiffInt := storedOption.Price.Discount.IntValue - parsedOption.Price.Discount.IntValue
+    priceDiffAbs := int64(math.Abs(float64(priceDiffInt)))
 
     priceDiff := ProductPriceDiff{
-      IsLower: priceDiffInt > 0,
-      New:     money.String(parsedOption.Price.Discount.IntValue),
-      Old:     money.String(storedOption.Price.Discount.IntValue),
-      Diff:    money.String(priceDiffInt),
+      IsLower:  priceDiffInt > 0,
+      IsHigher: priceDiffInt < 0,
+      New:      money.String(parsedOption.Price.Discount.IntValue),
+      Old:      money.String(storedOption.Price.Discount.IntValue),
+      Diff:     money.String(priceDiffAbs),
     }
 
     optionsDiff = append(optionsDiff, ProductOptionDiff{

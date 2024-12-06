@@ -7,6 +7,7 @@ import (
 
   "github.com/google/uuid"
   "github.com/samber/lo"
+  "github.com/ushakovn/outfit/pkg/hasher"
 )
 
 type SendableType string
@@ -85,17 +86,20 @@ func (b Builder) SetTrackingPtr(tracking *Tracking) Builder {
 }
 
 func (b Builder) BuildTrackingMessage() BuildResult {
-  text := fmt.Sprintf(`Товар 📦:
+  text := fmt.Sprintf(`Отслеживаемый товар 📦
+
 %s %s %s
-(Ссылка: %s)
+%s
 
 `, b.tracking.ParsedProduct.Brand,
     b.tracking.ParsedProduct.Category,
     b.tracking.ParsedProduct.Description,
     b.tracking.ParsedProduct.URL)
 
-  text += `Указанные размеры 📋:
+  if len(b.tracking.Sizes.Values) != 0 {
+    text += `Указанные размеры:
 `
+  }
 
   for index, label := range b.tracking.Sizes.Values {
     text += fmt.Sprintf("%d. %s", index+1, label)
@@ -105,6 +109,8 @@ func (b Builder) BuildTrackingMessage() BuildResult {
     }
   }
 
+  text = strings.TrimSpace(text)
+
   return BuildResult{
     Message: SendableMessage{
       UUID:    uuid.NewString(),
@@ -112,8 +118,8 @@ func (b Builder) BuildTrackingMessage() BuildResult {
       Type:    TrackingSendableType,
       Product: b.product,
       Text: SendableText{
-        Value:  strings.TrimSpace(text),
-        SHA256: "",
+        Value:  text,
+        SHA256: hasher.SHA256(text),
       },
     },
     IsValid: true,
@@ -121,9 +127,10 @@ func (b Builder) BuildTrackingMessage() BuildResult {
 }
 
 func (b Builder) BuildProductMessage() BuildResult {
-  text := fmt.Sprintf(`Товар 📦:
+  text := fmt.Sprintf(`<b>Выбранный товар 📦</b>
+
 %s %s %s
-(Ссылка: %s)
+%s
 `, b.product.Brand, b.product.Category, b.product.Description,
     b.product.URL)
 
@@ -131,8 +138,8 @@ func (b Builder) BuildProductMessage() BuildResult {
 
     if option.Stock.Quantity != 0 {
       text += fmt.Sprintf(`
-%d. Размер: %s %s в наличие.
-Кол-во: %d шт.`,
+%d. Размер: %s %s в наличии
+Кол-во: %d шт`,
         index+1,
         option.Size.Brand.Value, option.Size.Brand.System,
         option.Stock.Quantity)
@@ -140,25 +147,27 @@ func (b Builder) BuildProductMessage() BuildResult {
 
     if option.Stock.Quantity == 0 && option.Size.EmbedNotFoundSize == nil {
       text += fmt.Sprintf(`
-%d. Размер: %s %s отсутствует в наличие.`,
+%d. Размер: %s %s отсутствует в наличии`,
         index+1,
         option.Size.Brand.Value, option.Size.Brand.System)
     }
 
     if option.Size.EmbedNotFoundSize != nil {
       text += fmt.Sprintf(`
-%d. Размер: %s не был найден на сайте.`,
+%d. Размер: %s не был найден на сайте`,
         index+1,
         option.Size.EmbedNotFoundSize.StringValue)
     }
 
     if option.Size.EmbedNotFoundSize == nil {
       text += fmt.Sprintf(`
-Цена: %s.
+Цена: %s
 `,
         option.Price.Discount.StringValue)
     }
   }
+
+  text = strings.TrimSpace(text)
 
   return BuildResult{
     Message: SendableMessage{
@@ -167,8 +176,8 @@ func (b Builder) BuildProductMessage() BuildResult {
       Type:    ProductSendableType,
       Product: b.product,
       Text: SendableText{
-        Value:  strings.TrimSpace(text),
-        SHA256: "",
+        Value:  text,
+        SHA256: hasher.SHA256(text),
       },
     },
     IsValid: true,
@@ -186,61 +195,106 @@ func (b Builder) BuildProductDiffMessage() BuildResult {
     },
   }
 
-  text := fmt.Sprintf(`<b>Оповещение по товару 🏷️:</b>
+  text := fmt.Sprintf(`<b>Оповещение по товару 📦</b>
+
 %s %s %s
-(Ссылка: %s).
+%s
 
 `, b.product.Brand, b.product.Category, b.product.Description,
     b.product.URL)
 
   for _, option := range b.diff.Options {
     switch {
-    // Упала цена, есть в наличие.
+    // Упала цена, есть в наличии.
     case option.Price.IsLower && !option.Stock.IsComeToInStock && option.Stock.IsAvailable:
       res.IsValid = true
 
-      text += fmt.Sprintf(`Цена на размер %s %s была снижена 📉!
+      text += fmt.Sprintf(`Цена на размер %s %s снижена 📉
 Текущая цена: %s 
-(Старая цена: %s, Разница: %s).
-Доступен в количестве: %d шт.
+Старая цена: %s
+Разница: %s
+Доступен в количестве: %d шт
 
 `,
         option.Size.Brand.Value, option.Size.Brand.System,
         option.Price.New, option.Price.Old, option.Price.Diff,
         option.Stock.Quantity)
 
-    // Упала цена, появился в наличие.
+    // Упала цена, появился в наличии.
     case option.Price.IsLower && option.Stock.IsComeToInStock:
       res.IsValid = true
 
-      text += fmt.Sprintf(`Размер: %s %s появился в наличие по сниженной цене 📦📉!
+      text += fmt.Sprintf(`Размер: %s %s снова в наличии по сниженной цене 📦📉
 Текущая цена: %s 
-(Старая цена: %s, Разница: %s).
-Доступен в количестве: %d шт.
+Старая цена: %s
+Разница: %s
+Доступен в количестве: %d шт
 
 `,
         option.Size.Brand.Value, option.Size.Brand.System,
         option.Price.New, option.Price.Old, option.Price.Diff,
         option.Stock.Quantity)
 
-    // Появился в наличие.
+    // Появился в наличии.
     case !option.Price.IsLower && option.Stock.IsComeToInStock:
       res.IsValid = true
 
-      text += fmt.Sprintf(`Размер: %s %s появился в наличие 📦!
-Текущая цена: %s.
-Доступен в количестве: %d шт.
+      text += fmt.Sprintf(`Размер: %s %s снова в наличии 📦
+Текущая цена: %s
+Доступен в количестве: %d шт
 
 `,
         option.Size.Brand.Value, option.Size.Brand.System,
         option.Price.New,
         option.Stock.Quantity)
+
+    // Цена возросла, есть в наличии, флаг включен.
+    case option.Price.IsHigher && option.Stock.IsAvailable && b.tracking.Flags.WithOptional:
+      res.IsValid = true
+
+      text += fmt.Sprintf(`Цена на размер: %s %s возросла 📈
+Текущая цена: %s 
+Старая цена: %s
+Разница: %s
+Доступен в количестве: %d шт
+
+`,
+        option.Size.Brand.Value, option.Size.Brand.System,
+        option.Price.New, option.Price.Old, option.Price.Diff,
+        option.Stock.Quantity)
+
+    // Цена возросла, товар раскупают, флаг включен.
+    case option.Price.IsHigher && option.Stock.IsAvailable && option.Stock.IsSellUp && b.tracking.Flags.WithOptional:
+      res.IsValid = true
+
+      text += fmt.Sprintf(`Цена на размер: %s %s возросла 📈
+Текущая цена: %s
+Старая цена: %s
+Разница: %s
+Количество товара уменьшилось c %d до %d 📉
+
+`,
+        option.Size.Brand.Value, option.Size.Brand.System,
+        option.Price.New, option.Price.Old, option.Price.Diff,
+        option.Stock.OldQuantity, option.Stock.Quantity)
+
+      // Товар раскупают, флаг включен.
+    case option.Stock.IsAvailable && option.Stock.IsSellUp && b.tracking.Flags.WithOptional:
+      res.IsValid = true
+
+      text += fmt.Sprintf(`Количество товара в размере %s %s уменьшилось c %d до %d 📉
+Текущая цена: %s`,
+        option.Size.Brand.Value, option.Size.Brand.System,
+        option.Stock.OldQuantity, option.Stock.Quantity,
+        option.Price.New)
     }
   }
 
+  text = strings.TrimSpace(text)
+
   res.Message.Text = SendableText{
-    Value:  strings.TrimSpace(text),
-    SHA256: "",
+    Value:  text,
+    SHA256: hasher.SHA256(text),
   }
 
   return res

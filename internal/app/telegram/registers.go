@@ -26,7 +26,7 @@ func (b *Transport) registerStartHandler(_ context.Context) {
 func (b *Transport) registerTrackingInputUrlMenuHandler(ctx context.Context) {
   b.deps.Telegram.RegisterHandlerMatchFunc(
     func(update *tgmodels.Update) bool {
-      if isBackButtonMessage(update) {
+      if isBackButtonMessage(update) || isNextButtonMessage(update) {
         return false
       }
 
@@ -54,7 +54,7 @@ func (b *Transport) registerTrackingInputUrlMenuHandler(ctx context.Context) {
 func (b *Transport) registerTrackingInputSizesMenuHandler(ctx context.Context) {
   b.deps.Telegram.RegisterHandlerMatchFunc(
     func(update *tgmodels.Update) bool {
-      if isBackButtonMessage(update) {
+      if isBackButtonMessage(update) || isNextButtonMessage(update) {
         return false
       }
 
@@ -79,9 +79,17 @@ func (b *Transport) registerTrackingInputSizesMenuHandler(ctx context.Context) {
   )
 }
 
-func isBackButtonMessage(update *tgmodels.Update) bool {
+func hasButtonText(update *tgmodels.Update, text string) bool {
   if update == nil || update.Message == nil {
     return false
   }
-  return strings.Contains(update.Message.Text, "Назад")
+  return strings.Contains(update.Message.Text, text)
+}
+
+func isBackButtonMessage(update *tgmodels.Update) bool {
+  return hasButtonText(update, "Назад")
+}
+
+func isNextButtonMessage(update *tgmodels.Update) bool {
+  return hasButtonText(update, "Далее")
 }

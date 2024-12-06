@@ -24,6 +24,7 @@ var (
   RegexNonDigit  = regexp.MustCompile(`[^0-9]`)
   RegexNonFloat  = regexp.MustCompile(`[^0-9.,]`)
   RegexRepeatSep = regexp.MustCompile(`\s{2,}`)
+  RegexURL       = regexp.MustCompile(`https?://.+`)
 )
 
 func StripTags(s string) string {
@@ -40,6 +41,12 @@ func IsEmptyStr(s string) bool {
 
 func TrimRepeatSeparators(s string, repl string) string {
   return RegexRepeatSep.ReplaceAllString(Strip(s), repl)
+}
+
+func ExtractURL(value string) string {
+  value = RegexURL.FindString(value)
+  value = strings.TrimSpace(value)
+  return value
 }
 
 func ExtractDigit(s string) string {

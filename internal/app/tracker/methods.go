@@ -86,9 +86,8 @@ func (c *Tracker) handleTracking(ctx context.Context, tracking *models.Tracking)
   }
 
   parsed, err := parser.Parse(ctx, models.ParseParams{
-    URL:      tracking.URL,
-    Sizes:    tracking.Sizes,
-    Discount: tracking.Discount,
+    URL:   tracking.URL,
+    Sizes: tracking.Sizes,
   })
   if err != nil {
     return fmt.Errorf("parser.Parse: %T: %w", parser, err)
@@ -97,6 +96,7 @@ func (c *Tracker) handleTracking(ctx context.Context, tracking *models.Tracking)
   diff := models.NewProductDiff(tracking.ParsedProduct, *parsed)
 
   result := models.Sendable(tracking.ChatId).
+    SetTrackingPtr(tracking).
     SetProductPtr(parsed).
     SetProductDiffPtr(diff).
     BuildProductDiffMessage()

@@ -10,9 +10,11 @@ const (
   TrackingInsertConfirmMenu SessionMenu = "tracking_insert_confirm_menu"
   TrackingInputUrlMenu      SessionMenu = "tracking_input_url_menu"
   TrackingInputSizesMenu    SessionMenu = "tracking_input_sizes_menu"
-  TrackingInputDiscountMenu SessionMenu = "tracking_input_discount_menu"
+  TrackingInputFlagMenu     SessionMenu = "tracking_input_flag_menu"
+  TrackingFlagConfirmMenu   SessionMenu = "tracking_flag_confirm_menu"
   TrackingDeleteMenu        SessionMenu = "tracking_delete_menu"
   TrackingDeleteConfirmMenu SessionMenu = "tracking_delete_confirm_menu"
+  ShopListMenu              SessionMenu = "shop_list_menu"
 )
 
 type SessionMenu = string

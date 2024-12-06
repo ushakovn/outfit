@@ -18,6 +18,7 @@ import (
   "github.com/ushakovn/outfit/internal/app/tracker"
   "github.com/ushakovn/outfit/internal/deps/storage/mongodb"
   "github.com/ushakovn/outfit/internal/models"
+  "github.com/ushakovn/outfit/pkg/stringer"
   "github.com/ushakovn/outfit/pkg/validator"
 )
 
@@ -214,45 +215,45 @@ func (b *Transport) createMessage(ctx context.Context, url string) (*models.Send
   return message, nil
 }
 
-func parseTrackingInputUrl(fields string) (parsedUrl string, errMessage string) {
-  parsedUrl = strings.TrimSpace(fields)
+func parseTrackingInputURL(fields string) (url string, err string) {
+  url = stringer.ExtractURL(fields)
 
-  if err := validator.URL(parsedUrl); err != nil {
-    errMessage = `<b>Кажется, введенная вами ссылка имеет неверный формат 😟.</b>
+  if e := validator.URL(url); e != nil {
+    err = `Кажется, введенная ссылка имеет неверный формат 😟
 
-Пример корректной ссылки: 
+Пример корректной ссылки 💬 
 https://www.lamoda.ru/p/rtlacv500501/clothes-carharttwip-dzhinsy/
 
-Попробуйте еще раз 😉.
+Попробуйте еще раз 😉
 `
-    return "", errMessage
+    return "", err
   }
 
-  return fields, ""
+  return url, ""
 }
 
-func parseTrackingInputSizes(fields string) (sizesValues []string, errMessage string) {
+func parseTrackingInputSizes(fields string) (values []string, err string) {
   sizesSlice := strings.Split(fields, ",")
 
   if len(sizesSlice) == 0 {
-    errMessage = `<b>Не удалось найти список размеров для товара 😟.</b>
+    err = `Не удалось найти список размеров для товара 😟
 
-Пример ввода данных:
-46/48, M, XL, 56/54
+Пример корректного ввода 💬
+S INT, M INT
 
- Попробуйте еще раз.
+Попробуйте еще раз 😉
 `
 
-    return nil, errMessage
+    return nil, err
   }
 
   for _, value := range sizesSlice {
     value = strings.TrimSpace(value)
 
-    sizesValues = append(sizesValues, value)
+    values = append(values, value)
   }
 
-  return sizesValues, ""
+  return values, ""
 }
 
 func findChatIdInUpdate(update *tgmodels.Update) (int64, bool) {
