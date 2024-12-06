@@ -21,11 +21,21 @@ type SendableMessage struct {
   UUID        string       `bson:"uuid" json:"uuid"`
   ChatId      int64        `bson:"chat_id" json:"chat_id"`
   Type        SendableType `bson:"type" json:"type"`
-  TextValue   string       `bson:"text_value" json:"text_value"`
+  Text        SendableText `bson:"text" json:"text"`
   Product     Product      `bson:"product" json:"product"`
   ProductDiff *ProductDiff `bson:"product_diff" json:"product_diff"`
-  SentId      *int64       `bson:"sent_id" json:"sent_id"`
+  SentId      *int         `bson:"sent_id" json:"sent_id"`
   SentAt      *time.Time   `bson:"sent_at" json:"sent_at"`
+}
+
+type SendableText struct {
+  Value  string `bson:"value" json:"value"`
+  SHA256 string `bson:"sha256" json:"sha256"`
+}
+
+func (s *SendableMessage) SetAsSent(id int) {
+  s.SentId = lo.ToPtr(id)
+  s.SentAt = lo.ToPtr(time.Now())
 }
 
 type BuildResult struct {
@@ -97,11 +107,14 @@ func (b Builder) BuildTrackingMessage() BuildResult {
 
   return BuildResult{
     Message: SendableMessage{
-      UUID:      uuid.NewString(),
-      ChatId:    b.chatId,
-      Type:      TrackingSendableType,
-      Product:   b.product,
-      TextValue: strings.TrimSpace(text),
+      UUID:    uuid.NewString(),
+      ChatId:  b.chatId,
+      Type:    TrackingSendableType,
+      Product: b.product,
+      Text: SendableText{
+        Value:  strings.TrimSpace(text),
+        SHA256: "",
+      },
     },
     IsValid: true,
   }
@@ -149,11 +162,14 @@ func (b Builder) BuildProductMessage() BuildResult {
 
   return BuildResult{
     Message: SendableMessage{
-      UUID:      uuid.NewString(),
-      ChatId:    b.chatId,
-      Type:      ProductSendableType,
-      Product:   b.product,
-      TextValue: strings.TrimSpace(text),
+      UUID:    uuid.NewString(),
+      ChatId:  b.chatId,
+      Type:    ProductSendableType,
+      Product: b.product,
+      Text: SendableText{
+        Value:  strings.TrimSpace(text),
+        SHA256: "",
+      },
     },
     IsValid: true,
   }
@@ -183,8 +199,9 @@ func (b Builder) BuildProductDiffMessage() BuildResult {
     case option.Price.IsLower && !option.Stock.IsComeToInStock && option.Stock.IsAvailable:
       res.IsValid = true
 
-      text += fmt.Sprintf(`<b>Цена на размер %s %s была снижена 📉!</b>
-Текущая цена: %s (Старая цена: %s, Разница: %s).
+      text += fmt.Sprintf(`Цена на размер %s %s была снижена 📉!
+Текущая цена: %s 
+(Старая цена: %s, Разница: %s).
 Доступен в количестве: %d шт.
 
 `,
@@ -196,8 +213,9 @@ func (b Builder) BuildProductDiffMessage() BuildResult {
     case option.Price.IsLower && option.Stock.IsComeToInStock:
       res.IsValid = true
 
-      text += fmt.Sprintf(`<b>Размер: %s %s появился в наличие по сниженной цене 📦📉!</b>
-Текущая цена: %s (Старая цена: %s, Разница: %s).
+      text += fmt.Sprintf(`Размер: %s %s появился в наличие по сниженной цене 📦📉!
+Текущая цена: %s 
+(Старая цена: %s, Разница: %s).
 Доступен в количестве: %d шт.
 
 `,
@@ -209,7 +227,7 @@ func (b Builder) BuildProductDiffMessage() BuildResult {
     case !option.Price.IsLower && option.Stock.IsComeToInStock:
       res.IsValid = true
 
-      text += fmt.Sprintf(`<b>Размер: %s %s появился в наличие 📦!</b>
+      text += fmt.Sprintf(`Размер: %s %s появился в наличие 📦!
 Текущая цена: %s.
 Доступен в количестве: %d шт.
 
@@ -220,7 +238,10 @@ func (b Builder) BuildProductDiffMessage() BuildResult {
     }
   }
 
-  res.Message.TextValue = strings.TrimSpace(text)
+  res.Message.Text = SendableText{
+    Value:  strings.TrimSpace(text),
+    SHA256: "",
+  }
 
   return res
 }

@@ -2,6 +2,7 @@ package telegram
 
 import (
   "context"
+  "errors"
   "fmt"
   "strings"
   "time"
@@ -150,6 +151,9 @@ func (b *Transport) findTracking(ctx context.Context, chatId int64, url string) 
     },
   })
   if err != nil {
+    if errors.Is(err, mongodb.ErrNotFound) {
+      return nil, nil
+    }
     return nil, fmt.Errorf("b.deps.Mongodb.Get: %w", err)
   }
 
@@ -305,7 +309,7 @@ func (b *Transport) newTrackingSlider(params trackingSliderParams) *tgslider.Sli
     }
 
     slide := tgslider.Slide{
-      Text:  telegram.EscapeMarkdown(res.Message.TextValue),
+      Text:  telegram.EscapeMarkdown(res.Message.Text.Value),
       Photo: tracking.ParsedProduct.ImageURL,
     }
 

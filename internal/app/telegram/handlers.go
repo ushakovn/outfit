@@ -185,7 +185,33 @@ func (b *Transport) handleTrackingInputUrlMenu(ctx context.Context, bot *telegra
     }
   }
 
-  if err := b.checkProductURL(parsedUrl); err != nil {
+  tracking, err := b.findTracking(ctx, chatId, parsedUrl)
+  if err != nil {
+    log.
+      WithField("chat_id", chatId).
+      WithField("menu", models.TrackingInputUrlMenu).
+      Errorf("b.findTracking: %v", err)
+
+    return
+  }
+
+  if tracking != nil {
+    err = b.sendMessage(ctx, sendMessageParams{
+      ChatId: chatId,
+      Text: `Отслеживание по данному товару уже существует 📄.
+Вы можете удалить его и создать новое с необходимыми параметрами 😉.`,
+      Reply: reply,
+    })
+    if err != nil {
+      log.
+        WithField("chat_id", chatId).
+        WithField("menu", models.TrackingInputUrlMenu).
+        Errorf("b.sendMessage: %v", err)
+    }
+    return
+  }
+
+  if err = b.checkProductURL(parsedUrl); err != nil {
     if errors.Is(err, tracker.ErrUnsupportedProductType) {
       err = b.sendMessage(ctx, sendMessageParams{
         ChatId: chatId,
@@ -209,7 +235,7 @@ func (b *Transport) handleTrackingInputUrlMenu(ctx context.Context, bot *telegra
     return
   }
 
-  err := b.sendMessage(ctx, sendMessageParams{
+  err = b.sendMessage(ctx, sendMessageParams{
     ChatId: chatId,
     Text:   `Сейчас бот проверит карточку товара и вернется с результатом 💬.`,
     Reply:  reply,
@@ -235,7 +261,7 @@ func (b *Transport) handleTrackingInputUrlMenu(ctx context.Context, bot *telegra
 
   err = b.sendMessage(ctx, sendMessageParams{
     ChatId: chatId,
-    Text:   message.TextValue,
+    Text:   message.Text.Value,
     Reply:  reply,
   })
   if err != nil {
@@ -252,9 +278,7 @@ func (b *Transport) handleTrackingInputUrlMenu(ctx context.Context, bot *telegra
   })
   sizesCount := len(message.Product.Options)
 
-  switch sizesCount {
-
-  case 0:
+  if sizesCount <= 1 {
     reply = newReplyKeyboard(models.TrackingInputUrlMenu).
       Row().Button("Подтвердить 📨", bot, telegram.MatchTypeExact, b.handleTrackingInsertConfirmMenu).
       Row().Button("Назад 👓", bot, telegram.MatchTypeExact, b.handleStartSilentMenu)
@@ -271,55 +295,53 @@ func (b *Transport) handleTrackingInputUrlMenu(ctx context.Context, bot *telegra
         WithField("chat_id", chatId).
         WithField("menu", models.TrackingInputUrlMenu).
         Errorf("b.sendMessage: %v", err)
-
-      return
     }
+    return
+  }
 
-  default:
-    err = b.sendMessage(ctx, sendMessageParams{
-      ChatId: chatId,
-      Text: `<b>Проверьте полученные от бота данные 📦:</b>
+  err = b.sendMessage(ctx, sendMessageParams{
+    ChatId: chatId,
+    Text: `<b>Проверьте полученные от бота данные 📦:</b>
   - Если все хорошо, выберите подходящие размеры из списка ниже 😉.
   - Если вы передумали или хотите вернуться в главное меню, нажмите "Назад 👓".`,
-      Reply: reply,
-    })
-    if err != nil {
-      log.
-        WithField("chat_id", chatId).
-        WithField("menu", models.TrackingInputUrlMenu).
-        Errorf("b.sendMessage: %v", err)
+    Reply: reply,
+  })
+  if err != nil {
+    log.
+      WithField("chat_id", chatId).
+      WithField("menu", models.TrackingInputUrlMenu).
+      Errorf("b.sendMessage: %v", err)
 
-      return
+    return
+  }
+
+  text := "<b>Доступные размеры 📋:</b>\n"
+
+  for index, label := range sizesValues {
+    text += fmt.Sprintf("%d. %s", index+1, label)
+
+    if index != len(sizesValues)-1 {
+      text += "\n"
     }
+  }
+  text = strings.TrimSpace(text)
 
-    text := "<b>Доступные размеры 📋:</b>\n"
-
-    for index, label := range sizesValues {
-      text += fmt.Sprintf("%d. %s", index+1, label)
-
-      if index != len(sizesValues)-1 {
-        text += "\n"
-      }
-    }
-    text = strings.TrimSpace(text)
-
-    text += `
+  text += `
 Размеры необходимо вводить через запятую, в точности так, как указано в списке 📋.
 Кстати, вы можете ввести размер, которого нет в списке, если точно знаете, что такой существует 😉.`
 
-    err = b.sendMessage(ctx, sendMessageParams{
-      ChatId: chatId,
-      Text:   text,
-      Reply:  reply,
-    })
-    if err != nil {
-      log.
-        WithField("chat_id", chatId).
-        WithField("menu", models.TrackingInputUrlMenu).
-        Errorf("b.sendMessage: %v", err)
+  err = b.sendMessage(ctx, sendMessageParams{
+    ChatId: chatId,
+    Text:   text,
+    Reply:  reply,
+  })
+  if err != nil {
+    log.
+      WithField("chat_id", chatId).
+      WithField("menu", models.TrackingInputUrlMenu).
+      Errorf("b.sendMessage: %v", err)
 
-      return
-    }
+    return
   }
 
   err = b.upsertSession(ctx, upsertSessionParams{

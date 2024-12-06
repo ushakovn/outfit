@@ -69,7 +69,7 @@ func (c *Tracker) CreateMessage(ctx context.Context, params CreateMessageParams)
     Discount: params.Discount,
   })
   if err != nil {
-    return nil, fmt.Errorf("parser.Pars: %T: %w", parser, err)
+    return nil, fmt.Errorf("parser.Parse: %T: %w", parser, err)
   }
 
   result := models.Sendable(params.ChatId).
@@ -91,7 +91,7 @@ func (c *Tracker) handleTracking(ctx context.Context, tracking *models.Tracking)
     Discount: tracking.Discount,
   })
   if err != nil {
-    return fmt.Errorf("parser.Pars: %T: %w", parser, err)
+    return fmt.Errorf("parser.Parse: %T: %w", parser, err)
   }
 
   diff := models.NewProductDiff(tracking.ParsedProduct, *parsed)
@@ -105,8 +105,8 @@ func (c *Tracker) handleTracking(ctx context.Context, tracking *models.Tracking)
     return nil
   }
 
-  if err = c.insertMessage(ctx, result.Message); err != nil {
-    return fmt.Errorf("c.insertMessage: %w", err)
+  if err = c.insertMessageIfNotExist(ctx, result.Message); err != nil {
+    return fmt.Errorf("c.insertMessageIfNotExist: %w", err)
   }
 
   // Проставляем актуальный продукт

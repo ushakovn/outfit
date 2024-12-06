@@ -8,13 +8,32 @@ import (
   "github.com/ushakovn/outfit/internal/models"
 )
 
-func (c *Tracker) insertMessage(ctx context.Context, message models.SendableMessage) error {
-  _, err := c.deps.Mongodb.Insert(ctx, mongodb.InsertParams{
-    CommonParams: mongodb.CommonParams{
-      Database:   "outfit",
-      Collection: "messages",
+func (c *Tracker) insertMessageIfNotExist(ctx context.Context, message models.SendableMessage) error {
+  common := mongodb.CommonParams{
+    Database:   "outfit",
+    Collection: "messages",
+    StructType: message,
+  }
+
+  res, err := c.deps.Mongodb.Find(ctx, mongodb.FindParams{
+    CommonParams: common,
+    Filters: map[string]any{
+      "chat_id":     message.ChatId,
+      "text.sha256": message.Text.SHA256,
     },
-    Document: message,
+    Limit: 1,
+  })
+  if err != nil {
+    return fmt.Errorf("c.deps.Mongodb.Find: %w", err)
+  }
+
+  if len(res) != 0 {
+    return nil
+  }
+
+  _, err = c.deps.Mongodb.Insert(ctx, mongodb.InsertParams{
+    CommonParams: common,
+    Document:     message,
   })
   if err != nil {
     return fmt.Errorf("c.deps.Mongodb.Insert: %w", err)

@@ -4,11 +4,9 @@ import (
   "context"
   "fmt"
   "strings"
-  "time"
 
   telegram "github.com/go-telegram/bot"
   tgmodels "github.com/go-telegram/bot/models"
-  "github.com/samber/lo"
   "github.com/ushakovn/outfit/internal/deps/storage/mongodb"
   "github.com/ushakovn/outfit/internal/models"
 )
@@ -74,15 +72,13 @@ func (s *Sender) Start(ctx context.Context) error {
 func (s *Sender) handleSendableMessage(ctx context.Context, message *models.SendableMessage) error {
   sent, err := s.deps.Telegram.SendMessage(ctx, &telegram.SendMessageParams{
     ChatID:    message.ChatId,
-    Text:      strings.TrimSpace(message.TextValue),
+    Text:      strings.TrimSpace(message.Text.Value),
     ParseMode: tgmodels.ParseModeHTML,
   })
   if err != nil {
     return fmt.Errorf("s.deps.Telegram.SendMessage: %w", err)
   }
-
-  message.SentId = lo.ToPtr(int64(sent.ID))
-  message.SentAt = lo.ToPtr(time.Now())
+  message.SetAsSent(sent.ID)
 
   if err = s.updateSendableMessage(ctx, message); err != nil {
     return fmt.Errorf("s.updateSendableMessage: %w", err)

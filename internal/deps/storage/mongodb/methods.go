@@ -8,9 +8,7 @@ import (
 
   log "github.com/sirupsen/logrus"
   "go.mongodb.org/mongo-driver/bson"
-  "go.mongodb.org/mongo-driver/mongo"
   "go.mongodb.org/mongo-driver/mongo/options"
-  "go.mongodb.org/mongo-driver/mongo/writeconcern"
 )
 
 type CommonParams struct {
@@ -253,32 +251,4 @@ func (c *Client) Delete(ctx context.Context, params DeleteParams) (count int64, 
   }
 
   return res.DeletedCount, nil
-}
-
-// WithTransaction работает только с replica set.
-func (c *Client) WithTransaction(ctx context.Context, callback func(txCtx context.Context) error) error {
-  writeConcern := writeconcern.Majority()
-
-  txOptions := options.
-    Transaction().
-    SetWriteConcern(writeConcern)
-
-  session, err := c.client.StartSession()
-  if err != nil {
-    return fmt.Errorf("c.client.StartSession: %w", err)
-  }
-  defer session.EndSession(ctx)
-
-  wrappedCallback := func(sessionCtx mongo.SessionContext) (any, error) {
-    err = callback(sessionCtx)
-
-    return nil, err
-  }
-
-  _, err = session.WithTransaction(ctx, wrappedCallback, txOptions)
-  if err != nil {
-    return fmt.Errorf("session.WithTransaction: %w", err)
-  }
-
-  return nil
 }
