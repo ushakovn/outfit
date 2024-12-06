@@ -14,7 +14,7 @@ require (
 	github.com/samber/lo v1.47.0
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cast v1.7.0
-	github.com/ushakovn/boiler v0.0.0-20241130145314-11598d1d9de4
+	github.com/ushakovn/boiler v0.0.0-20241130145712-0b70e59756fa
 	go.mongodb.org/mongo-driver v1.17.1
 	golang.org/x/net v0.27.0
 	golang.org/x/text v0.17.0

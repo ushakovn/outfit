@@ -16,6 +16,7 @@ import (
   "github.com/ushakovn/outfit/internal/deps/parsers/lamoda"
   "github.com/ushakovn/outfit/internal/deps/storage/mongodb"
   "github.com/ushakovn/outfit/internal/models"
+  "github.com/ushakovn/outfit/pkg/logger"
   "github.com/ushakovn/outfit/pkg/parser/xpath"
 
   _ "github.com/ushakovn/boiler/pkg/app"
@@ -23,6 +24,8 @@ import (
 
 func main() {
   ctx := context.Background()
+
+  logger.Init()
 
   mongoClient, err := mongodb.NewClient(ctx,
     mongodb.Config{
@@ -39,6 +42,7 @@ func main() {
   if err != nil {
     log.Fatalf("mongodb.NewClient: %v", err)
   }
+  log.Infof("mongodb connection sucessfully")
 
   xpathParser := xpath.NewParser(xpath.Dependencies{
     Client: resty.NewWithClient(http.DefaultClient),
@@ -59,6 +63,7 @@ func main() {
   if err != nil {
     log.Fatalf("bot.New: %v", err)
   }
+  log.Infof("telegram client connection sucessfully")
 
   telegramTransport := telegram.NewTransport(telegram.Dependencies{
     Tracker:  trackerClient,
@@ -67,8 +72,11 @@ func main() {
   })
 
   telegramTransport.Start(ctx)
+  log.Info("telegram bot started successfully")
 
   exitSignal := make(chan os.Signal)
   signal.Notify(exitSignal, syscall.SIGINT, syscall.SIGTERM)
   <-exitSignal
+
+  log.Warn("telegram bot terminating after os signal")
 }

@@ -195,6 +195,8 @@ github.com/ushakovn/boiler v0.0.0-20241130143508-11333d4a2647 h1:2QsPqPkosYXdIp5
 github.com/ushakovn/boiler v0.0.0-20241130143508-11333d4a2647/go.mod h1:MUNv7hKVLnEsPFxt5xKmh/Fph33dqyaNm33cdJX214A=
 github.com/ushakovn/boiler v0.0.0-20241130145314-11598d1d9de4 h1:nyRwWUeowkL/+DyBo9k0UfpTJhkBqMOu6BoJBXdQZr4=
 github.com/ushakovn/boiler v0.0.0-20241130145314-11598d1d9de4/go.mod h1:MUNv7hKVLnEsPFxt5xKmh/Fph33dqyaNm33cdJX214A=
+github.com/ushakovn/boiler v0.0.0-20241130145712-0b70e59756fa h1:hhuCH2MPXoBZlGQnRnI3gtxaXgOdpaVu88l8fW5Y51M=
+github.com/ushakovn/boiler v0.0.0-20241130145712-0b70e59756fa/go.mod h1:MUNv7hKVLnEsPFxt5xKmh/Fph33dqyaNm33cdJX214A=
 github.com/vektah/gqlparser/v2 v2.5.10 h1:6zSM4azXC9u4Nxy5YmdmGu4uKamfwsdKTwp5zsEealU=
 github.com/vektah/gqlparser/v2 v2.5.10/go.mod h1:1rCcfwB2ekJofmluGWXMSEnPMZgbxzwj6FaZ/4OT8Cc=
 github.com/xdg-go/pbkdf2 v1.0.0 h1:Su7DPu48wXMwC3bs7MCNG+z4FhcyEuz5dlvchbq0B0c=

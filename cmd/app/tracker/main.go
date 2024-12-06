@@ -11,6 +11,7 @@ import (
   "github.com/ushakovn/outfit/internal/deps/parsers/lamoda"
   "github.com/ushakovn/outfit/internal/deps/storage/mongodb"
   "github.com/ushakovn/outfit/internal/models"
+  "github.com/ushakovn/outfit/pkg/logger"
   "github.com/ushakovn/outfit/pkg/parser/xpath"
 
   _ "github.com/ushakovn/boiler/pkg/app"
@@ -20,6 +21,8 @@ var productType models.ProductType
 
 func main() {
   ctx := context.Background()
+
+  logger.Init()
 
   flag.StringVar(&productType, "type", "", "product type")
   flag.Parse()
@@ -39,6 +42,7 @@ func main() {
   if err != nil {
     log.Fatalf("mongodb.NewClient: %v", err)
   }
+  log.Infof("mongodb connection sucessfully")
 
   xpathParser := xpath.NewParser(xpath.Dependencies{
     Client: resty.NewWithClient(http.DefaultClient),
@@ -55,7 +59,10 @@ func main() {
     },
   })
 
+  log.Infof("tracker cron starting now")
+
   if err = trackerCron.Start(ctx); err != nil {
     log.Fatalf("trackerCron.Start: %v", err)
   }
+  log.Infof("tracker cron completed successfully")
 }
