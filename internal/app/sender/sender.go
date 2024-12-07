@@ -10,6 +10,7 @@ import (
   log "github.com/sirupsen/logrus"
   "github.com/ushakovn/outfit/internal/deps/storage/mongodb"
   "github.com/ushakovn/outfit/internal/models"
+  "github.com/ushakovn/outfit/pkg/worker"
 )
 
 type Sender struct {
@@ -49,6 +50,8 @@ func (c *Sender) Start(ctx context.Context) error {
     WithField("product_type", c.config.ProductType).
     Info("sender cron starting")
 
+  pool := worker.NewPool(ctx, worker.DefaultCount)
+
   err := c.deps.Mongodb.Scan(ctx, mongodb.ScanParams{
     CommonParams: mongodb.CommonParams{
       Database:   "outfit",
@@ -78,25 +81,29 @@ func (c *Sender) Start(ctx context.Context) error {
         }).
         Info("scanned message from mongodb collection")
 
-      if err := c.handleSendableMessage(ctx, message); err != nil {
+      pool.Push(func(ctx context.Context) error {
+        if err := c.handleSendableMessage(ctx, message); err != nil {
+          log.
+            WithFields(log.Fields{
+              "message.uuid":        message.UUID,
+              "message.chat_id":     message.ChatId,
+              "message.product.url": message.Product.URL,
+            }).
+            Errorf("sendable message handle failed: %v", err)
+
+          return nil
+        }
+
         log.
           WithFields(log.Fields{
             "message.uuid":        message.UUID,
             "message.chat_id":     message.ChatId,
             "message.product.url": message.Product.URL,
           }).
-          Errorf("sendable message handle failed: %v", err)
+          Info("message handled successfully")
 
         return nil
-      }
-
-      log.
-        WithFields(log.Fields{
-          "message.uuid":        message.UUID,
-          "message.chat_id":     message.ChatId,
-          "message.product.url": message.Product.URL,
-        }).
-        Info("message handled successfully")
+      })
 
       return nil
     },

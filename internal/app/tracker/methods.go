@@ -7,6 +7,7 @@ import (
   log "github.com/sirupsen/logrus"
   "github.com/ushakovn/outfit/internal/deps/storage/mongodb"
   "github.com/ushakovn/outfit/internal/models"
+  "github.com/ushakovn/outfit/pkg/worker"
 )
 
 func (c *Tracker) Start(ctx context.Context) error {
@@ -20,6 +21,8 @@ func (c *Tracker) Start(ctx context.Context) error {
   log.
     WithField("product_type", c.config.ProductType).
     Info("tracker cron starting")
+
+  pool := worker.NewPool(ctx, worker.DefaultCount)
 
   err := c.deps.Mongodb.Scan(ctx, mongodb.ScanParams{
     CommonParams: mongodb.CommonParams{
@@ -44,23 +47,27 @@ func (c *Tracker) Start(ctx context.Context) error {
         }).
         Info("scanned tracking from mongodb collection")
 
-      if err := c.handleTracking(ctx, tracking); err != nil {
+      pool.Push(func(ctx context.Context) error {
+        if err := c.handleTracking(ctx, tracking); err != nil {
+          log.
+            WithFields(log.Fields{
+              "tracking.url":     tracking.URL,
+              "tracking.chat_id": tracking.ChatId,
+            }).
+            Errorf("tracking handle failed: %v", err)
+
+          return nil
+        }
+
         log.
           WithFields(log.Fields{
             "tracking.url":     tracking.URL,
             "tracking.chat_id": tracking.ChatId,
           }).
-          Errorf("tracking handle failed: %v", err)
+          Info("tracking handled successfully")
 
         return nil
-      }
-
-      log.
-        WithFields(log.Fields{
-          "tracking.url":     tracking.URL,
-          "tracking.chat_id": tracking.ChatId,
-        }).
-        Info("tracking handled successfully")
+      })
 
       return nil
     },
