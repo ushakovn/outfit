@@ -22,6 +22,14 @@ import (
   "github.com/ushakovn/outfit/pkg/validator"
 )
 
+func setTrackingSizes(tracking *models.Tracking, sizes []string) {
+  tracking.Sizes.Values = sizes
+}
+
+func setTrackingFlag(tracking *models.Tracking, flag bool) {
+  tracking.Flags.WithOptional = flag
+}
+
 func (b *Transport) findSession(ctx context.Context, chatID int64) (*models.Session, error) {
   res, err := b.deps.Mongodb.Get(ctx, mongodb.GetParams{
     CommonParams: mongodb.CommonParams{
@@ -112,11 +120,11 @@ func (b *Transport) upsertSession(ctx context.Context, params upsertSessionParam
   session := models.Session{
     ChatId: params.ChatId,
     Message: models.SessionMessage{
-      Id:        params.MessageID,
-      Menu:      params.Menu,
-      UpdatedAt: time.Now(),
+      Id:   params.MessageID,
+      Menu: params.Menu,
     },
-    Tracking: params.Tracking,
+    Tracking:  params.Tracking,
+    UpdatedAt: time.Now(),
   }
 
   _, err := b.deps.Mongodb.Upsert(ctx, mongodb.UpdateParams{

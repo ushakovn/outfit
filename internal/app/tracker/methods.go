@@ -4,7 +4,7 @@ import (
   "context"
   "fmt"
 
-  "github.com/samber/lo"
+  log "github.com/sirupsen/logrus"
   "github.com/ushakovn/outfit/internal/deps/storage/mongodb"
   "github.com/ushakovn/outfit/internal/models"
 )
@@ -17,28 +17,64 @@ func (c *Tracker) Start(ctx context.Context) error {
     return fmt.Errorf("product type not specified")
   }
 
-  err := c.deps.Mongodb.Scan(ctx,
-    mongodb.ScanParams{
-      CommonParams: mongodb.CommonParams{
-        Database:   "outfit",
-        Collection: "trackings",
-        StructType: models.Tracking{},
-      },
-      Callback: func(ctx context.Context, value any) error {
-        tracking, ok := value.(*models.Tracking)
-        if !ok {
-          return fmt.Errorf("cast %v with type: %[1]T to: %T failed", value, new(models.Tracking))
-        }
-        return c.handleTracking(ctx, tracking)
-      },
-      Filters: map[string]any{
-        "parsed_product.type": c.config.ProductType,
-      },
+  log.
+    WithField("product_type", c.config.ProductType).
+    Info("tracker cron starting")
+
+  err := c.deps.Mongodb.Scan(ctx, mongodb.ScanParams{
+    CommonParams: mongodb.CommonParams{
+      Database:   "outfit",
+      Collection: "trackings",
+      StructType: models.Tracking{},
     },
-  )
+    Callback: func(ctx context.Context, value any) error {
+      tracking, ok := value.(*models.Tracking)
+      if !ok {
+        log.
+          WithField("tracking.value", value).
+          Errorf("cast tracking %v with type: %[1]T to: %T failed", value, new(models.Tracking))
+
+        return nil
+      }
+
+      log.
+        WithFields(log.Fields{
+          "tracking.url":     tracking.URL,
+          "tracking.chat_id": tracking.ChatId,
+        }).
+        Info("scanned tracking from mongodb collection")
+
+      if err := c.handleTracking(ctx, tracking); err != nil {
+        log.
+          WithFields(log.Fields{
+            "tracking.url":     tracking.URL,
+            "tracking.chat_id": tracking.ChatId,
+          }).
+          Errorf("tracking handle failed: %v", err)
+
+        return nil
+      }
+
+      log.
+        WithFields(log.Fields{
+          "tracking.url":     tracking.URL,
+          "tracking.chat_id": tracking.ChatId,
+        }).
+        Info("tracking handled successfully")
+
+      return nil
+    },
+    Filters: map[string]any{
+      "parsed_product.type": c.config.ProductType,
+    },
+  })
   if err != nil {
     return fmt.Errorf("c.deps.Mongodb.Scan: %w", err)
   }
+
+  log.
+    WithField("product_type", c.config.ProductType).
+    Info("tracker cron completed successfully")
 
   return nil
 }
@@ -109,8 +145,7 @@ func (c *Tracker) handleTracking(ctx context.Context, tracking *models.Tracking)
     return fmt.Errorf("c.insertMessageIfNotExist: %w", err)
   }
 
-  // Проставляем актуальный продукт
-  tracking.ParsedProduct = lo.FromPtr(parsed)
+  setTrackingUpdates(tracking, parsed)
 
   if err = c.upsertTracking(ctx, tracking); err != nil {
     return fmt.Errorf("c.upsertTracking: %w", err)

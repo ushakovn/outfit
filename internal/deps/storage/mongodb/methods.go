@@ -9,6 +9,7 @@ import (
   log "github.com/sirupsen/logrus"
   "go.mongodb.org/mongo-driver/bson"
   "go.mongodb.org/mongo-driver/mongo/options"
+  "go.uber.org/atomic"
 )
 
 type CommonParams struct {
@@ -29,6 +30,16 @@ func (p *ScanParams) toFilters() bson.D {
 }
 
 func (c *Client) Scan(ctx context.Context, params ScanParams) error {
+  log.
+    WithFields(log.Fields{
+      "params.database":   params.Database,
+      "params.collection": params.Collection,
+      "params.filters":    params.Filters,
+    }).
+    Info("mongodb collection scan starting")
+
+  counter := atomic.NewUint32(0)
+
   filters := params.toFilters()
 
   cursor, err := c.client.
@@ -37,16 +48,18 @@ func (c *Client) Scan(ctx context.Context, params ScanParams) error {
     Find(ctx, filters)
 
   if err != nil {
-    return fmt.Errorf("c.client.Database.Collection.Find: %w", err)
+    return fmt.Errorf("mongodb.Database.Collection.Find: %w", err)
   }
 
   defer func() {
     if err = cursor.Close(ctx); err != nil {
-      log.Error("mongodb.Telegram: cursor.Close: %v", err)
+      log.Error("mongodb.Client: cursor.Close: %v", err)
     }
   }()
 
   for cursor.Next(ctx) {
+    counter.Inc()
+
     doc := any(make(map[string]any))
 
     if params.StructType != nil {
@@ -62,6 +75,15 @@ func (c *Client) Scan(ctx context.Context, params ScanParams) error {
       return fmt.Errorf("params.Callback: %T: %w", doc, err)
     }
   }
+
+  log.
+    WithFields(log.Fields{
+      "params.database":    params.Database,
+      "params.collection":  params.Collection,
+      "params.filters":     params.Filters,
+      "mongodb.find.count": counter.Load(),
+    }).
+    Info("mongodb collection scan completed")
 
   return nil
 }
@@ -84,6 +106,13 @@ func (c *Client) Upsert(ctx context.Context, params UpdateParams) (id any, err e
   res, err := c.Get(ctx, params.GetParams)
   if err != nil {
     if errors.Is(err, ErrNotFound) {
+      log.
+        WithFields(log.Fields{
+          "params.database":   params.Database,
+          "params.collection": params.Collection,
+          "params.filters":    params.Filters,
+        }).
+        Debug("document not found in mongodb collection. new document will be inserted")
 
       res, err = c.Insert(ctx, InsertParams{
         CommonParams: params.CommonParams,
@@ -98,6 +127,14 @@ func (c *Client) Upsert(ctx context.Context, params UpdateParams) (id any, err e
 
     return nil, fmt.Errorf("c.Get: %w", err)
   }
+
+  log.
+    WithFields(log.Fields{
+      "params.database":   params.Database,
+      "params.collection": params.Collection,
+      "params.filters":    params.Filters,
+    }).
+    Debug("document found in mongodb collection. existed document will be updated")
 
   res, err = c.Update(ctx, UpdateParams{
     GetParams: params.GetParams,
@@ -123,6 +160,14 @@ func (c *Client) Update(ctx context.Context, params UpdateParams) (id any, err e
     return nil, fmt.Errorf("c.client.Database.Collection.UpdateOne: %w", err)
   }
 
+  log.
+    WithFields(log.Fields{
+      "params.database":   params.Database,
+      "params.collection": params.Collection,
+      "params.filters":    params.Filters,
+    }).
+    Debug("document in mongodb collection updated successfully")
+
   return res.UpsertedID, nil
 
 }
@@ -142,6 +187,13 @@ func (c *Client) Insert(ctx context.Context, params InsertParams) (id any, err e
   if err != nil {
     return nil, fmt.Errorf("c.client.Database.Collection.InsertOne: %w", err)
   }
+
+  log.
+    WithFields(log.Fields{
+      "params.database":   params.Database,
+      "params.collection": params.Collection,
+    }).
+    Debug("document inserted to mongodb collection successfully")
 
   return res.InsertedID, nil
 }
@@ -163,6 +215,14 @@ func (c *Client) Get(ctx context.Context, params GetParams) (any, error) {
   }
 
   if len(out) == 0 {
+    log.
+      WithFields(log.Fields{
+        "params.database":   params.Database,
+        "params.collection": params.Collection,
+        "params.filters":    params.Filters,
+      }).
+      Debug("document not found in mongodb collection")
+
     return nil, ErrNotFound
   }
 
@@ -190,6 +250,16 @@ func (p *FindParams) toOptions() *options.FindOptions {
 }
 
 func (c *Client) Find(ctx context.Context, params FindParams) ([]any, error) {
+  log.
+    WithFields(log.Fields{
+      "params.database":   params.Database,
+      "params.collection": params.Collection,
+      "params.filters":    params.Filters,
+    }).
+    Debug("mongodb collection find starting")
+
+  counter := atomic.NewUint32(0)
+
   filters := params.toFilters()
   opts := params.toOptions()
 
@@ -223,7 +293,18 @@ func (c *Client) Find(ctx context.Context, params FindParams) ([]any, error) {
     }
 
     out = append(out, doc)
+
+    counter.Inc()
   }
+
+  log.
+    WithFields(log.Fields{
+      "params.database":    params.Database,
+      "params.collection":  params.Collection,
+      "params.filters":     params.Filters,
+      "mongodb.find.count": counter.Load(),
+    }).
+    Debug("mongodb collection find completed")
 
   return out, nil
 }
@@ -249,6 +330,14 @@ func (c *Client) Delete(ctx context.Context, params DeleteParams) (count int64, 
   if err != nil {
     return 0, fmt.Errorf("c.client.Database.Collection.Delete: %w", err)
   }
+
+  log.
+    WithFields(log.Fields{
+      "params.database":   params.Database,
+      "params.collection": params.Collection,
+      "params.filters":    params.Filters,
+    }).
+    Debug("documents deleted from mongodb collection successfully")
 
   return res.DeletedCount, nil
 }

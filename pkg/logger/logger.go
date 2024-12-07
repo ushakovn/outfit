@@ -2,7 +2,7 @@ package logger
 
 import (
   log "github.com/sirupsen/logrus"
-  "github.com/ushakovn/outfit/pkg/env"
+  "github.com/ushakovn/boiler/pkg/env"
 )
 
 type formatter struct {
@@ -25,23 +25,25 @@ func Init() {
 
 func InitWithFields(fields map[string]any) {
   var (
-    f log.Formatter
-    l log.Level
+    format log.Formatter
+    caller bool
   )
 
-  if env.IsProduction() {
-    f = new(log.JSONFormatter)
-    l = log.InfoLevel
-  } else {
-    f = new(log.TextFormatter)
-    l = log.DebugLevel
+  switch env.AppEnv() {
+
+  case env.ProductionEnv:
+    format = new(log.JSONFormatter)
+    caller = true
+
+  default:
+    format = new(log.TextFormatter)
+    caller = false
   }
 
   log.SetFormatter(formatter{
     fields: fields,
-    format: f,
+    format: format,
   })
-
-  log.SetLevel(l)
-  log.SetReportCaller(true)
+  log.SetLevel(log.InfoLevel)
+  log.SetReportCaller(caller)
 }

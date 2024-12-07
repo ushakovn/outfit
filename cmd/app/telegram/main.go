@@ -8,13 +8,13 @@ import (
   "syscall"
 
   "github.com/go-resty/resty/v2"
-  tgbot "github.com/go-telegram/bot"
   log "github.com/sirupsen/logrus"
-  "github.com/ushakovn/outfit/internal/app/telegram"
+  tgtransport "github.com/ushakovn/outfit/internal/app/telegram"
   "github.com/ushakovn/outfit/internal/app/tracker"
   "github.com/ushakovn/outfit/internal/config"
   "github.com/ushakovn/outfit/internal/deps/parsers/lamoda"
   "github.com/ushakovn/outfit/internal/deps/storage/mongodb"
+  tgbot "github.com/ushakovn/outfit/internal/deps/telegram"
   "github.com/ushakovn/outfit/internal/models"
   "github.com/ushakovn/outfit/pkg/logger"
   "github.com/ushakovn/outfit/pkg/parser/xpath"
@@ -26,6 +26,8 @@ func main() {
   ctx := context.Background()
 
   logger.Init()
+
+  log.Warn("telegram bot app initializing")
 
   mongoClient, err := mongodb.NewClient(ctx,
     mongodb.Config{
@@ -42,7 +44,6 @@ func main() {
   if err != nil {
     log.Fatalf("mongodb.NewClient: %v", err)
   }
-  log.Infof("mongodb connection sucessfully")
 
   xpathParser := xpath.NewParser(xpath.Dependencies{
     Client: resty.NewWithClient(http.DefaultClient),
@@ -59,24 +60,24 @@ func main() {
     },
   })
 
-  telegramClient, err := tgbot.New(config.Get(ctx, config.TelegramToken).String())
+  telegramBotClient, err := tgbot.NewBotClient(tgbot.Config{
+    Token: config.Get(ctx, config.TelegramToken).String(),
+  })
   if err != nil {
-    log.Fatalf("bot.New: %v", err)
+    log.Fatalf("tgbot.NewBotClient: %v", err)
   }
-  log.Infof("telegram client connection sucessfully")
 
-  telegramTransport := telegram.NewTransport(telegram.Dependencies{
+  telegramBotTransport := tgtransport.NewTransport(tgtransport.Dependencies{
     Tracker:  trackerClient,
-    Telegram: telegramClient,
+    Telegram: telegramBotClient,
     Mongodb:  mongoClient,
   })
 
-  telegramTransport.Start(ctx)
-  log.Info("telegram bot started successfully")
+  telegramBotTransport.Start(ctx)
 
   exitSignal := make(chan os.Signal)
   signal.Notify(exitSignal, syscall.SIGINT, syscall.SIGTERM)
   <-exitSignal
 
-  log.Warn("telegram bot terminating after os signal")
+  log.Warn("telegram bot app terminating")
 }

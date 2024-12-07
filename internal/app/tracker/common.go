@@ -3,10 +3,18 @@ package tracker
 import (
   "context"
   "fmt"
+  "time"
 
+  "github.com/samber/lo"
+  log "github.com/sirupsen/logrus"
   "github.com/ushakovn/outfit/internal/deps/storage/mongodb"
   "github.com/ushakovn/outfit/internal/models"
 )
+
+func setTrackingUpdates(tracking *models.Tracking, product *models.Product) {
+  tracking.ParsedProduct = lo.FromPtr(product)
+  tracking.Timestamps.HandledAt = lo.ToPtr(time.Now())
+}
 
 func (c *Tracker) insertMessageIfNotExist(ctx context.Context, message models.SendableMessage) error {
   common := mongodb.CommonParams{
@@ -38,6 +46,13 @@ func (c *Tracker) insertMessageIfNotExist(ctx context.Context, message models.Se
   if err != nil {
     return fmt.Errorf("c.deps.Mongodb.Insert: %w", err)
   }
+
+  log.
+    WithFields(log.Fields{
+      "message.uuid":    message.UUID,
+      "message.chat_id": message.ChatId,
+    }).
+    Info("new sendable message inserted to trackings mongodb collection")
 
   return nil
 }

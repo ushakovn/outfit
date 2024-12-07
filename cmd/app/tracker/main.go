@@ -24,6 +24,8 @@ func main() {
 
   logger.Init()
 
+  log.Warn("tracker cron app initializing")
+
   flag.StringVar(&productType, "type", "", "product type")
   flag.Parse()
 
@@ -42,7 +44,6 @@ func main() {
   if err != nil {
     log.Fatalf("mongodb.NewClient: %v", err)
   }
-  log.Infof("mongodb connection sucessfully")
 
   xpathParser := xpath.NewParser(xpath.Dependencies{
     Client: resty.NewWithClient(http.DefaultClient),
@@ -59,10 +60,9 @@ func main() {
     },
   })
 
-  log.Infof("tracker cron starting now")
-
   if err = trackerCron.Start(ctx); err != nil {
     log.Fatalf("trackerCron.Start: %v", err)
   }
-  log.Infof("tracker cron completed successfully")
+
+  log.Warn("tracker cron app terminating")
 }

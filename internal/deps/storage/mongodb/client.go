@@ -8,6 +8,7 @@ import (
   "strings"
 
   "github.com/go-playground/validator/v10"
+  log "github.com/sirupsen/logrus"
   "go.mongodb.org/mongo-driver/mongo"
   "go.mongodb.org/mongo-driver/mongo/options"
 )
@@ -85,6 +86,13 @@ func NewClient(ctx context.Context, config Config, deps Dependencies) (*Client, 
   if err = client.Ping(ctx, nil); err != nil {
     return nil, fmt.Errorf("client.Ping: %w", err)
   }
+
+  log.
+    WithFields(log.Fields{
+      "config.host": config.Host,
+      "config.port": config.Port,
+    }).
+    Info("mongodb connection successfully")
 
   return &Client{
     client: client,

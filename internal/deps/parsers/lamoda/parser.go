@@ -9,6 +9,7 @@ import (
   "strings"
 
   set "github.com/deckarep/golang-set/v2"
+  log "github.com/sirupsen/logrus"
   "github.com/ushakovn/outfit/internal/models"
   "github.com/ushakovn/outfit/pkg/ext"
   "github.com/ushakovn/outfit/pkg/money"
@@ -115,6 +116,13 @@ func validateURL(url string) error {
 }
 
 func (p *Parser) Parse(ctx context.Context, params models.ParseParams) (*models.Product, error) {
+  log.
+    WithFields(log.Fields{
+      "params.url":   params.URL,
+      "params.sizes": params.Sizes.Values,
+    }).
+    Debug("lamoda product parsing started")
+
   if err := validateURL(params.URL); err != nil {
     return nil, fmt.Errorf("invalid url: %s. error: %w", params.URL, err)
   }
@@ -135,6 +143,14 @@ func (p *Parser) Parse(ctx context.Context, params models.ParseParams) (*models.
     sizeString := makeSizeString(parsedSize)
 
     if !matchSize(sizeString, paramsSizesSet) {
+      log.
+        WithFields(log.Fields{
+          "params.url":   params.URL,
+          "params.sizes": params.Sizes,
+          "parsed.size":  sizeString,
+        }).
+        Debug("lamoda parsed size not match to params: size will be skipped")
+
       continue
     }
 
@@ -148,6 +164,13 @@ func (p *Parser) Parse(ctx context.Context, params models.ParseParams) (*models.
   notFoundSizes := paramsSizesSet.ToSlice()
 
   for _, size := range notFoundSizes {
+    log.
+      WithFields(log.Fields{
+        "params.url":  params.URL,
+        "params.size": size,
+      }).
+      Debug("lamoda product has not parsed size: not found on site")
+
     product.Options = append(product.Options, models.ProductOption{
       Stock: models.ProductStock{
         Quantity: 0,
@@ -159,6 +182,13 @@ func (p *Parser) Parse(ctx context.Context, params models.ParseParams) (*models.
       },
     })
   }
+
+  log.
+    WithFields(log.Fields{
+      "params.url":   params.URL,
+      "params.sizes": params.Sizes.Values,
+    }).
+    Debug("lamoda product parsed successfully")
 
   return &product, nil
 }

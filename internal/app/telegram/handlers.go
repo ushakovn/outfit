@@ -5,6 +5,7 @@ import (
   "errors"
   "fmt"
   "strings"
+  "time"
 
   telegram "github.com/go-telegram/bot"
   tgmodels "github.com/go-telegram/bot/models"
@@ -349,6 +350,9 @@ S INT, M INT`
       ChatId:        chatId,
       URL:           parsedUrl,
       ParsedProduct: message.Product,
+      Timestamps: models.TrackingTimestamps{
+        CreatedAt: time.Now(),
+      },
     },
   })
   if err != nil {
@@ -402,9 +406,7 @@ func (b *Transport) handleTrackingInputSizesMenu(ctx context.Context, bot *teleg
     return
   }
 
-  session.Tracking.Sizes = models.ParseSizesParams{
-    Values: sizesValues,
-  }
+  setTrackingSizes(session.Tracking, sizesValues)
 
   err = b.upsertSession(ctx, upsertSessionParams{
     ChatId:   chatId,
@@ -538,7 +540,7 @@ func (b *Transport) handleTrackingFlagOnMenu(ctx context.Context, bot *telegram.
     return
   }
 
-  session.Tracking.Flags.WithOptional = true
+  setTrackingFlag(session.Tracking, true)
 
   err = b.upsertSession(ctx, upsertSessionParams{
     ChatId:   chatId,

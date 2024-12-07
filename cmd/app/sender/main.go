@@ -5,12 +5,12 @@ import (
   "flag"
   "net/http"
 
-  "github.com/go-telegram/bot"
   log "github.com/sirupsen/logrus"
   _ "github.com/ushakovn/boiler/pkg/app"
   "github.com/ushakovn/outfit/internal/app/sender"
   "github.com/ushakovn/outfit/internal/config"
   "github.com/ushakovn/outfit/internal/deps/storage/mongodb"
+  tgbot "github.com/ushakovn/outfit/internal/deps/telegram"
   "github.com/ushakovn/outfit/internal/models"
   "github.com/ushakovn/outfit/pkg/logger"
 )
@@ -21,6 +21,8 @@ func main() {
   ctx := context.Background()
 
   logger.Init()
+
+  log.Warn("sender cron app initializing")
 
   flag.StringVar(&productType, "type", "", "product type")
   flag.Parse()
@@ -40,23 +42,22 @@ func main() {
   if err != nil {
     log.Fatalf("mongodb.NewClient: %v", err)
   }
-  log.Infof("mongodb connection sucessfully")
 
-  telegramClient, err := bot.New(config.Get(ctx, config.TelegramToken).String())
+  telegramBotClient, err := tgbot.NewBotClient(tgbot.Config{
+    Token: config.Get(ctx, config.TelegramToken).String(),
+  })
   if err != nil {
-    log.Fatalf("bot.New: %v", err)
+    log.Fatalf("tgbot.NewBotClient: %v", err)
   }
-  log.Infof("telegram client connection sucessfully")
 
   senderCron := sender.NewSenderCron(productType, sender.Dependencies{
-    Telegram: telegramClient,
+    Telegram: telegramBotClient,
     Mongodb:  mongoClient,
   })
-
-  log.Infof("sender cron starting now")
 
   if err = senderCron.Start(ctx); err != nil {
     log.Fatalf("senderCron.Start: %v", err)
   }
-  log.Infof("sender cron completed successfully")
+
+  log.Warn("sender cron app terminating")
 }

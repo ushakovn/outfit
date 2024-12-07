@@ -7,6 +7,7 @@ import (
 
   telegram "github.com/go-telegram/bot"
   tgmodels "github.com/go-telegram/bot/models"
+  log "github.com/sirupsen/logrus"
   "github.com/ushakovn/outfit/internal/deps/storage/mongodb"
   "github.com/ushakovn/outfit/internal/models"
 )
@@ -36,15 +37,19 @@ func NewSenderCron(typ models.ProductType, deps Dependencies) *Sender {
   }
 }
 
-func (s *Sender) Start(ctx context.Context) error {
-  if !s.config.IsCron {
+func (c *Sender) Start(ctx context.Context) error {
+  if !c.config.IsCron {
     return fmt.Errorf("method called without cron flag")
   }
-  if s.config.ProductType == "" {
+  if c.config.ProductType == "" {
     return fmt.Errorf("product type not specified")
   }
 
-  err := s.deps.Mongodb.Scan(ctx, mongodb.ScanParams{
+  log.
+    WithField("product_type", c.config.ProductType).
+    Info("sender cron starting")
+
+  err := c.deps.Mongodb.Scan(ctx, mongodb.ScanParams{
     CommonParams: mongodb.CommonParams{
       Database:   "outfit",
       Collection: "messages",
@@ -53,42 +58,90 @@ func (s *Sender) Start(ctx context.Context) error {
     Filters: map[string]any{
       "type":         models.ProductDiffSendableType,
       "sent_id":      nil,
-      "product.type": s.config.ProductType,
+      "product.type": c.config.ProductType,
     },
     Callback: func(ctx context.Context, value any) error {
       message, ok := value.(*models.SendableMessage)
       if !ok {
-        return fmt.Errorf("cast %v with type: %[1]T to: %T failed", value, new(models.SendableMessage))
+        log.
+          WithField("message.value", value).
+          Errorf("cast message %v with type: %[1]T to: %T failed", value, new(models.SendableMessage))
+
+        return nil
       }
-      return s.handleSendableMessage(ctx, message)
+
+      log.
+        WithFields(log.Fields{
+          "message.uuid":        message.UUID,
+          "message.chat_id":     message.ChatId,
+          "message.product.url": message.Product.URL,
+        }).
+        Info("scanned message from mongodb collection")
+
+      if err := c.handleSendableMessage(ctx, message); err != nil {
+        log.
+          WithFields(log.Fields{
+            "message.uuid":        message.UUID,
+            "message.chat_id":     message.ChatId,
+            "message.product.url": message.Product.URL,
+          }).
+          Errorf("sendable message handle failed: %v", err)
+
+        return nil
+      }
+
+      log.
+        WithFields(log.Fields{
+          "message.uuid":        message.UUID,
+          "message.chat_id":     message.ChatId,
+          "message.product.url": message.Product.URL,
+        }).
+        Info("message handled successfully")
+
+      return nil
     },
   })
   if err != nil {
-    return fmt.Errorf("s.deps.Mongodb.Scan: %w", err)
+    return fmt.Errorf("c.deps.Mongodb.Scan: %w", err)
   }
+
+  log.
+    WithField("product_type", c.config.ProductType).
+    Info("sender cron completed successfully")
+
   return nil
 }
 
-func (s *Sender) handleSendableMessage(ctx context.Context, message *models.SendableMessage) error {
-  sent, err := s.deps.Telegram.SendMessage(ctx, &telegram.SendMessageParams{
+func (c *Sender) handleSendableMessage(ctx context.Context, message *models.SendableMessage) error {
+  sent, err := c.deps.Telegram.SendMessage(ctx, &telegram.SendMessageParams{
     ChatID:    message.ChatId,
     Text:      strings.TrimSpace(message.Text.Value),
     ParseMode: tgmodels.ParseModeHTML,
   })
   if err != nil {
-    return fmt.Errorf("s.deps.Telegram.SendMessage: %w", err)
+    return fmt.Errorf("c.deps.Telegram.SendMessage: %w", err)
   }
+
+  log.
+    WithFields(log.Fields{
+      "message.uuid":        message.UUID,
+      "message.chat_id":     message.ChatId,
+      "message.sent_id":     sent.ID,
+      "message.product.url": message.Product.URL,
+    }).
+    Info("message sent to telegram chat")
+
   message.SetAsSent(sent.ID)
 
-  if err = s.updateSendableMessage(ctx, message); err != nil {
-    return fmt.Errorf("s.updateSendableMessage: %w", err)
+  if err = c.updateSendableMessage(ctx, message); err != nil {
+    return fmt.Errorf("c.updateSendableMessage: %w", err)
   }
 
   return nil
 }
 
-func (s *Sender) updateSendableMessage(ctx context.Context, message *models.SendableMessage) error {
-  _, err := s.deps.Mongodb.Update(ctx, mongodb.UpdateParams{
+func (c *Sender) updateSendableMessage(ctx context.Context, message *models.SendableMessage) error {
+  _, err := c.deps.Mongodb.Update(ctx, mongodb.UpdateParams{
     GetParams: mongodb.GetParams{
       CommonParams: mongodb.CommonParams{
         Database:   "outfit",
@@ -102,7 +155,7 @@ func (s *Sender) updateSendableMessage(ctx context.Context, message *models.Send
     Document: message,
   })
   if err != nil {
-    return fmt.Errorf("s.deps.Mongodb.Update: %w", err)
+    return fmt.Errorf("c.deps.Mongodb.Update: %w", err)
   }
 
   return nil

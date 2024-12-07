@@ -19,14 +19,14 @@ const (
 )
 
 type SendableMessage struct {
-  UUID        string       `bson:"uuid" json:"uuid"`
-  ChatId      int64        `bson:"chat_id" json:"chat_id"`
-  Type        SendableType `bson:"type" json:"type"`
-  Text        SendableText `bson:"text" json:"text"`
-  Product     Product      `bson:"product" json:"product"`
-  ProductDiff *ProductDiff `bson:"product_diff" json:"product_diff"`
-  SentId      *int         `bson:"sent_id" json:"sent_id"`
-  SentAt      *time.Time   `bson:"sent_at" json:"sent_at"`
+  UUID        string             `bson:"uuid" json:"uuid"`
+  ChatId      int64              `bson:"chat_id" json:"chat_id"`
+  Type        SendableType       `bson:"type" json:"type"`
+  Text        SendableText       `bson:"text" json:"text"`
+  Product     Product            `bson:"product" json:"product"`
+  ProductDiff *ProductDiff       `bson:"product_diff" json:"product_diff"`
+  SentId      *int               `bson:"sent_id" json:"sent_id"`
+  Timestamps  SendableTimestamps `bson:"timestamps" json:"timestamps"`
 }
 
 type SendableText struct {
@@ -34,9 +34,14 @@ type SendableText struct {
   SHA256 string `bson:"sha256" json:"sha256"`
 }
 
+type SendableTimestamps struct {
+  CreatedAt time.Time  `bson:"created_at" json:"created_at"`
+  SentAt    *time.Time `bson:"sent_at" json:"sent_at"`
+}
+
 func (s *SendableMessage) SetAsSent(id int) {
   s.SentId = lo.ToPtr(id)
-  s.SentAt = lo.ToPtr(time.Now())
+  s.Timestamps.SentAt = lo.ToPtr(time.Now())
 }
 
 type BuildResult struct {
@@ -113,13 +118,16 @@ func (b Builder) BuildTrackingMessage() BuildResult {
 
   return BuildResult{
     Message: SendableMessage{
-      UUID:    uuid.NewString(),
-      ChatId:  b.chatId,
-      Type:    TrackingSendableType,
-      Product: b.product,
+      UUID:   uuid.NewString(),
+      ChatId: b.chatId,
+      Type:   TrackingSendableType,
       Text: SendableText{
         Value:  text,
         SHA256: hasher.SHA256(text),
+      },
+      Product: b.product,
+      Timestamps: SendableTimestamps{
+        CreatedAt: time.Now(),
       },
     },
     IsValid: true,
@@ -179,6 +187,9 @@ func (b Builder) BuildProductMessage() BuildResult {
         Value:  text,
         SHA256: hasher.SHA256(text),
       },
+      Timestamps: SendableTimestamps{
+        CreatedAt: time.Now(),
+      },
     },
     IsValid: true,
   }
@@ -192,6 +203,9 @@ func (b Builder) BuildProductDiffMessage() BuildResult {
       Type:        ProductDiffSendableType,
       Product:     b.product,
       ProductDiff: &b.diff,
+      Timestamps: SendableTimestamps{
+        CreatedAt: time.Now(),
+      },
     },
   }
 
