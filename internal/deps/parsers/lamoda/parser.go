@@ -15,6 +15,7 @@ import (
   "github.com/ushakovn/outfit/pkg/money"
   "github.com/ushakovn/outfit/pkg/parser/xpath"
   "github.com/ushakovn/outfit/pkg/validator"
+  "golang.org/x/net/html"
 )
 
 const (
@@ -23,8 +24,8 @@ const (
 )
 
 var (
-  regexBaseURL      = regexp.MustCompile(`https?://(www\.)?lamoda.ru/.+`)
-  regexProductJSVar = regexp.MustCompile(`.*__NUXT__.*`)
+  regexURL  = regexp.MustCompile(`https?://(www\.)?lamoda.ru/.+`)
+  regexNUXT = regexp.MustCompile(`.*__NUXT__.*`)
 )
 
 type Parser struct {
@@ -53,7 +54,7 @@ func (p *Parser) findProductJSON(ctx context.Context, url string) (*ParsedProduc
   parsed := new(ParsedProduct)
 
   if err = json.Unmarshal([]byte(content), parsed); err != nil {
-    return nil, fmt.Errorf("product json unmarhsal: %w", err)
+    return nil, fmt.Errorf("product json unmarshal: %w", err)
   }
 
   return parsed, nil
@@ -65,21 +66,17 @@ func (p *Parser) findProductNodeContent(ctx context.Context, url string) (string
     return "", fmt.Errorf("p.deps.Xpath.GetHtmlDoc: %w", err)
   }
 
-  scripts := p.deps.Xpath.CollectElements(doc, `//script`)
+  script, exist := xpath.FindElement(doc, `//script`, func(node *html.Node) bool {
+    content, ok := xpath.GetContent(node, xpath.ShiftToLastChild)
 
-  var content string
+    return ok && regexNUXT.MatchString(content)
+  })
 
-  for _, script := range scripts {
-    content, _ = p.deps.Xpath.ExtractNodeContent(script, xpath.ShiftToLastChild)
-
-    if content = regexProductJSVar.FindString(content); content != "" {
-      break
-    }
-  }
-
-  if content == "" {
+  if !exist {
     return "", fmt.Errorf("product script node not found")
   }
+
+  content, _ := xpath.GetContent(script, xpath.ShiftToLastChild)
 
   return content, nil
 }
@@ -109,7 +106,7 @@ func validateURL(url string) error {
   if err := validator.URL(url); err != nil {
     return err
   }
-  if !regexBaseURL.MatchString(url) {
+  if !regexURL.MatchString(url) {
     return fmt.Errorf("expected: %s", baseURL)
   }
   return nil
@@ -133,11 +130,10 @@ func (p *Parser) Parse(ctx context.Context, params models.ParseParams) (*models.
   }
 
   product := makeProductFromParsed(params.URL, parsed)
-
-  paramsSizesSet := makeSizesSet(params.Sizes.Values)
   priceOptions := makeProductPriceOptions(parsed, params)
 
-  productSizes := make([]string, 0, len(parsed.Product.Sizes)*2)
+  paramsSizesSet := makeSizesSet(params.Sizes)
+  productSizes := make([]string, 0, len(parsed.Product.Sizes))
 
   for _, parsedSize := range parsed.Product.Sizes {
     sizeString := makeSizeString(parsedSize)
@@ -154,7 +150,7 @@ func (p *Parser) Parse(ctx context.Context, params models.ParseParams) (*models.
       continue
     }
 
-    productOption := makeProductOption(parsedSize, priceOptions)
+    productOption := makeProductOption(params.URL, parsedSize, priceOptions)
     product.Options = append(product.Options, productOption)
 
     productSizes = append(productSizes, sizeString)
@@ -171,17 +167,18 @@ func (p *Parser) Parse(ctx context.Context, params models.ParseParams) (*models.
       }).
       Debug("lamoda product has not parsed size: not found on site")
 
-    product.Options = append(product.Options, models.ProductOption{
-      Stock: models.ProductStock{
-        Quantity: 0,
-      },
+    notFoundSize := models.EmbedNotFoundSize{
+      StringValue: size,
+    }
+    productOption := models.ProductOption{
       Size: models.ProductSizeOptions{
-        EmbedNotFoundSize: &models.EmbedNotFoundSize{
-          StringValue: size,
-        },
+        EmbedNotFoundSize: &notFoundSize,
       },
-    })
+    }
+    product.Options = append(product.Options, productOption)
   }
+
+  product.SetParsedAt()
 
   log.
     WithFields(log.Fields{
@@ -194,13 +191,15 @@ func (p *Parser) Parse(ctx context.Context, params models.ParseParams) (*models.
 }
 
 func makeProductFromParsed(url string, parsed *ParsedProduct) models.Product {
+  title := strings.TrimSpace(parsed.Product.Title)
+  model := strings.TrimSpace(parsed.Product.ModelTitle)
+
   return models.Product{
-    URL:         url,
-    Type:        models.ProductTypeByURL(url),
-    ImageURL:    makeProductImageURL(parsed),
-    Brand:       parsed.Product.Brand.Title,
-    Category:    parsed.Product.Title,
-    Description: parsed.Product.ModelTitle,
+    URL:      url,
+    Type:     models.FindProductType(url),
+    ImageURL: makeProductImageURL(parsed),
+    Brand:    strings.TrimSpace(parsed.Product.Brand.Title),
+    Category: fmt.Sprintf("%s %s", title, model),
   }
 }
 
@@ -228,16 +227,18 @@ func makeProductPriceOptions(parsed *ParsedProduct, params models.ParseParams) m
   return options
 }
 
-func makeProductOption(parsed *ParsedProductSize, price models.ProductPriceOptions) models.ProductOption {
+func makeProductOption(url string, parsed ParsedProductSize, price models.ProductPriceOptions) models.ProductOption {
   return models.ProductOption{
+    URL: fmt.Sprintf("%s?sku=%s", url, parsed.Sku),
+
+    Stock: models.ProductStock{
+      Quantity: parsed.StockQuantity,
+    },
     Size: models.ProductSizeOptions{
       Brand: models.ProductSize{
         System: parsed.BrandSizeSystem,
         Value:  parsed.BrandTitle,
       },
-    },
-    Stock: models.ProductStock{
-      Quantity: parsed.StockQuantity,
     },
     Price: price,
   }
@@ -258,7 +259,7 @@ func makeProductImageURL(parsed *ParsedProduct) string {
   return url
 }
 
-func makeSizeString(parsed *ParsedProductSize) string {
+func makeSizeString(parsed ParsedProductSize) string {
   sizeString := parsed.BrandTitle
 
   if parsed.BrandSizeSystem != "" {
@@ -272,6 +273,6 @@ func matchSize(sizeString string, sizesSet set.Set[string]) bool {
   return sizesSet.IsEmpty() || sizesSet.ContainsOne(sizeString)
 }
 
-func makeSizesSet(values []string) set.Set[string] {
-  return set.NewSet(values...)
+func makeSizesSet(params models.ParseSizesParams) set.Set[string] {
+  return set.NewSet(params.Values...)
 }

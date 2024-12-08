@@ -80,7 +80,7 @@ func (c *Tracker) upsertTracking(ctx context.Context, tracking *models.Tracking)
 }
 
 func (c *Tracker) findParser(productURL string) (models.Parser, error) {
-  productType := models.ProductTypeByURL(productURL)
+  productType := models.FindProductType(productURL)
 
   parser, ok := c.deps.Parsers[productType]
   if !ok {

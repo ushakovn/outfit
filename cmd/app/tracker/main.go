@@ -8,7 +8,9 @@ import (
   "github.com/go-resty/resty/v2"
   log "github.com/sirupsen/logrus"
   "github.com/ushakovn/outfit/internal/app/tracker"
+  "github.com/ushakovn/outfit/internal/deps/parsers/kixbox"
   "github.com/ushakovn/outfit/internal/deps/parsers/lamoda"
+  "github.com/ushakovn/outfit/internal/deps/parsers/oktyabr"
   "github.com/ushakovn/outfit/internal/deps/storage/mongodb"
   "github.com/ushakovn/outfit/internal/models"
   "github.com/ushakovn/outfit/pkg/logger"
@@ -49,14 +51,16 @@ func main() {
     Client: resty.NewWithClient(http.DefaultClient),
   })
 
-  lamodaParser := lamoda.NewParser(lamoda.Dependencies{
-    Xpath: xpathParser,
-  })
+  lamodaParser := lamoda.NewParser(lamoda.Dependencies{Xpath: xpathParser})
+  kixboxParser := kixbox.NewParser(kixbox.Dependencies{Xpath: xpathParser})
+  oktyabrParser := oktyabr.NewParser(oktyabr.Dependencies{Xpath: xpathParser})
 
   trackerCron := tracker.NewTrackerCron(productType, tracker.Dependencies{
     Mongodb: mongoClient,
     Parsers: map[models.ProductType]models.Parser{
-      models.ProductTypeLamoda: lamodaParser,
+      models.ProductTypeLamoda:  lamodaParser,
+      models.ProductTypeKixbox:  kixboxParser,
+      models.ProductTypeOktyabr: oktyabrParser,
     },
   })
 

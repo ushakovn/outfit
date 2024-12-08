@@ -12,7 +12,9 @@ import (
   tgtransport "github.com/ushakovn/outfit/internal/app/telegram"
   "github.com/ushakovn/outfit/internal/app/tracker"
   "github.com/ushakovn/outfit/internal/config"
+  "github.com/ushakovn/outfit/internal/deps/parsers/kixbox"
   "github.com/ushakovn/outfit/internal/deps/parsers/lamoda"
+  "github.com/ushakovn/outfit/internal/deps/parsers/oktyabr"
   "github.com/ushakovn/outfit/internal/deps/storage/mongodb"
   tgbot "github.com/ushakovn/outfit/internal/deps/telegram"
   "github.com/ushakovn/outfit/internal/models"
@@ -49,14 +51,16 @@ func main() {
     Client: resty.NewWithClient(http.DefaultClient),
   })
 
-  lamodaParser := lamoda.NewParser(lamoda.Dependencies{
-    Xpath: xpathParser,
-  })
+  lamodaParser := lamoda.NewParser(lamoda.Dependencies{Xpath: xpathParser})
+  kixboxParser := kixbox.NewParser(kixbox.Dependencies{Xpath: xpathParser})
+  oktyabrParser := oktyabr.NewParser(oktyabr.Dependencies{Xpath: xpathParser})
 
   trackerClient := tracker.NewTracker(tracker.Dependencies{
     Mongodb: mongoClient,
     Parsers: map[models.ProductType]models.Parser{
-      models.ProductTypeLamoda: lamodaParser,
+      models.ProductTypeLamoda:  lamodaParser,
+      models.ProductTypeKixbox:  kixboxParser,
+      models.ProductTypeOktyabr: oktyabrParser,
     },
   })
 

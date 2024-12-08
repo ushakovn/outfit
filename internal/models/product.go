@@ -4,7 +4,7 @@ import (
   "encoding/json"
   "fmt"
   "math"
-  "net/url"
+  neturl "net/url"
   "strings"
   "time"
 
@@ -15,6 +15,8 @@ import (
 const (
   ProductTypeUnknown ProductType = "unknown"
   ProductTypeLamoda  ProductType = "lamoda"
+  ProductTypeKixbox  ProductType = "kixbox"
+  ProductTypeOktyabr ProductType = "oktyabr"
 )
 
 type ProductType = string
@@ -31,6 +33,7 @@ type Product struct {
 }
 
 type ProductOption struct {
+  URL   string              `bson:"url" json:"url"`
   Stock ProductStock        `bson:"stock" json:"stock"`
   Size  ProductSizeOptions  `bson:"size" json:"size"`
   Price ProductPriceOptions `bson:"price" json:"price"`
@@ -143,6 +146,10 @@ func NewProductDiff(stored, parsed Product) *ProductDiff {
   }
 }
 
+func (p *Product) SetParsedAt() {
+  p.ParsedAt = time.Now()
+}
+
 func (s *ProductSize) String() string {
   label := s.Value
 
@@ -153,11 +160,16 @@ func (s *ProductSize) String() string {
   return label
 }
 
-func ProductTypeByURL(productURL string) ProductType {
-  parsedURL, _ := url.Parse(productURL)
+func FindProductType(url string) ProductType {
+  parsed, _ := neturl.Parse(url)
 
-  if strings.Contains(parsedURL.Host, "lamoda") {
+  switch {
+  case strings.Contains(parsed.Host, "lamoda"):
     return ProductTypeLamoda
+  case strings.Contains(parsed.Host, "kixbox"):
+    return ProductTypeKixbox
+  case strings.Contains(parsed.Host, "oktyabr"):
+    return ProductTypeOktyabr
   }
 
   return ProductTypeUnknown

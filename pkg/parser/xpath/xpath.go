@@ -4,6 +4,7 @@ import (
   "bytes"
   "context"
   "fmt"
+  "strings"
 
   "github.com/antchfx/htmlquery"
   "github.com/go-resty/resty/v2"
@@ -11,14 +12,14 @@ import (
   "golang.org/x/net/html"
 )
 
-type NodeShift int
+type ShiftNodePos int
 
 const (
-  ShiftNone          NodeShift = 0
-  ShiftToFirstChild  NodeShift = 1
-  ShiftToLastChild   NodeShift = 2
-  ShiftToPrevSibling NodeShift = 3
-  ShiftToNextSibling NodeShift = 4
+  ShiftNone          ShiftNodePos = 0
+  ShiftToFirstChild  ShiftNodePos = 1
+  ShiftToLastChild   ShiftNodePos = 2
+  ShiftToPrevSibling ShiftNodePos = 3
+  ShiftToNextSibling ShiftNodePos = 4
 )
 
 type HtmlDocument struct {
@@ -59,14 +60,16 @@ func (p *Parser) GetHtmlDoc(ctx context.Context, url string) (*HtmlDocument, err
   if err != nil {
     return nil, fmt.Errorf("p.GetHtmlNode: %w", err)
   }
+
   return &HtmlDocument{
     Node: htmlDoc,
     Url:  url,
   }, nil
 }
 
-func (p *Parser) HandleElement(doc *HtmlDocument, xpath string, handler func(*html.Node)) {
+func HandleElement(doc *HtmlDocument, xpath string, handler func(*html.Node)) {
   nodes := htmlquery.Find(doc.Node, xpath)
+
   for _, node := range nodes {
     if node == nil {
       continue
@@ -75,21 +78,23 @@ func (p *Parser) HandleElement(doc *HtmlDocument, xpath string, handler func(*ht
   }
 }
 
-func (p *Parser) ZipElements(f, s []*html.Node, handler func(*html.Node, *html.Node) error) error {
+func ZipElements(f, s []*html.Node, handler func(*html.Node, *html.Node) error) error {
   if len(f) != len(s) {
     return fmt.Errorf("lengths not equal")
   }
+
   for i := 0; i < len(f); i++ {
     err := handler(f[i], s[i])
     if err != nil {
       return err
     }
   }
+
   return nil
 }
 
-func (p *Parser) FindElement(doc *HtmlDocument, xpath string, handler func(node *html.Node) bool) (*html.Node, bool) {
-  nodes := p.CollectElements(doc, xpath)
+func FindElement(doc *HtmlDocument, xpath string, handler func(node *html.Node) bool) (*html.Node, bool) {
+  nodes := CollectElements(doc, xpath)
 
   for _, node := range nodes {
     if node == nil {
@@ -103,57 +108,85 @@ func (p *Parser) FindElement(doc *HtmlDocument, xpath string, handler func(node 
   return nil, false
 }
 
-func (p *Parser) CollectElements(doc *HtmlDocument, xpath string) []*html.Node {
+func CollectElements(doc *HtmlDocument, xpath string) []*html.Node {
   var nodes []*html.Node
-  p.HandleElement(doc, xpath, func(n *html.Node) {
+
+  HandleElement(doc, xpath, func(n *html.Node) {
     nodes = append(nodes, n)
   })
+
   return nodes
 }
 
-func (p *Parser) GetFirstElement(doc *HtmlDocument, xpath string) *html.Node {
+func GetFirstElement(doc *HtmlDocument, xpath string) *html.Node {
   var firstNode *html.Node
   nodes := htmlquery.Find(doc.Node, xpath)
+
   for _, node := range nodes {
     if node == nil {
       continue
     }
     firstNode = node
+
     break
   }
+
   return firstNode
 }
 
-func (p *Parser) GetAttribute(node *html.Node, attrKey string) (string, bool) {
+func GetAttributeContains(node *html.Node, attrKey string) (string, bool) {
   if node == nil {
     return "", false
   }
+
+  for _, attr := range node.Attr {
+    if !strings.Contains(attr.Key, attrKey) {
+      continue
+    }
+    return stringer.StripTags(attr.Val), true
+  }
+
+  return "", false
+}
+
+func GetAttribute(node *html.Node, attrKey string) (string, bool) {
+  if node == nil {
+    return "", false
+  }
+
   for _, attr := range node.Attr {
     if attr.Key != attrKey {
       continue
     }
     return stringer.StripTags(attr.Val), true
   }
+
   return "", false
 }
 
-func (p *Parser) GetContent(node *html.Node, shift NodeShift) (string, bool) {
-  node = p.NodeShift(node, shift)
+func GetContent(node *html.Node, shift ShiftNodePos) (string, bool) {
+  node = ShiftNode(node, shift)
   if node == nil {
     return "", false
   }
-  return stringer.StripTags(node.Data), !stringer.IsEmptyStr(node.Data)
+
+  content := stringer.StripTags(node.Data)
+  content = html.UnescapeString(content)
+
+  return content, !stringer.IsEmptyStr(content)
 }
 
-func (p *Parser) ExtractNodeContent(node *html.Node, shift NodeShift) (string, error) {
-  node = p.NodeShift(node, shift)
+func RenderContent(node *html.Node, shift ShiftNodePos) (string, error) {
+  node = ShiftNode(node, shift)
   if node == nil {
     return "", nil
   }
+
   b := &bytes.Buffer{}
   if err := html.Render(b, node); err != nil {
     return "", err
   }
+
   content := b.String()
   separator := ". "
 
@@ -163,7 +196,7 @@ func (p *Parser) ExtractNodeContent(node *html.Node, shift NodeShift) (string, e
   return content, nil
 }
 
-func (p *Parser) NodeShift(node *html.Node, shift NodeShift) *html.Node {
+func ShiftNode(node *html.Node, shift ShiftNodePos) *html.Node {
   if node == nil {
     return node
   }
