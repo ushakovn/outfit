@@ -22,7 +22,7 @@ import (
 const baseURL = "https://kixbox.ru"
 
 const (
-  schemaContext        = "https://schema.org/"
+  schemaContext        = "schema.org"
   schemaTypeProduct    = "Product"
   schemaTypeBreadcrumb = "BreadcrumbList"
 )
@@ -148,12 +148,13 @@ func (p *Parser) Parse(ctx context.Context, params models.ParseParams) (*models.
       }).
       Debug("kixbox product has not parsed size: not found on site")
 
-    notFoundSize := models.EmbedNotFoundSize{
-      StringValue: size,
+    notFoundSize := models.ProductSize{
+      System: "N/A",
+      Value:  size,
     }
     productOption := models.ProductOption{
       Size: models.ProductSizeOptions{
-        EmbedNotFoundSize: &notFoundSize,
+        NotFoundSize: &notFoundSize,
       },
     }
     product.Options = append(product.Options, productOption)
@@ -189,7 +190,7 @@ func findProductSizes(doc *xpath.HtmlDocument) SkuToSizeMatching {
       continue
     }
 
-    parts := strings.Split(content, "/")
+    parts := strings.Split(content, " / ")
     if len(parts) < 2 {
       continue
     }
@@ -351,8 +352,9 @@ func findProductStocks(doc *xpath.HtmlDocument) (SizeToStockMatching, error) {
 
   attr, _ := xpath.GetAttributeContains(node, "stocks")
 
+  attr = html.UnescapeString(attr)
   attr = strings.ReplaceAll(attr, `'`, `"`)
-  attr = strings.TrimSpace(attr)
+  attr = strings.Trim(attr, "` ")
 
   parsed := make(ParsedProductStocks)
 
@@ -413,8 +415,8 @@ func makeProductOption(sizeString string, stockQuantity int64, parsedOffer Parse
       Quantity: stockQuantity,
     },
     Size: models.ProductSizeOptions{
-      Brand: models.ProductSize{
-        System: "INT",
+      Base: models.ProductSize{
+        System: "N/A",
         Value:  sizeString,
       },
     },

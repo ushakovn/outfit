@@ -136,7 +136,7 @@ func (p *Parser) Parse(ctx context.Context, params models.ParseParams) (*models.
   productSizes := make([]string, 0, len(parsed.Product.Sizes))
 
   for _, parsedSize := range parsed.Product.Sizes {
-    sizeString := makeSizeString(parsedSize)
+    sizeString := strings.TrimSpace(parsedSize.BrandTitle)
 
     if !matchSize(sizeString, paramsSizesSet) {
       log.
@@ -167,12 +167,13 @@ func (p *Parser) Parse(ctx context.Context, params models.ParseParams) (*models.
       }).
       Debug("lamoda product has not parsed size: not found on site")
 
-    notFoundSize := models.EmbedNotFoundSize{
-      StringValue: size,
+    notFoundSize := models.ProductSize{
+      System: "N/A",
+      Value:  size,
     }
     productOption := models.ProductOption{
       Size: models.ProductSizeOptions{
-        EmbedNotFoundSize: &notFoundSize,
+        NotFoundSize: &notFoundSize,
       },
     }
     product.Options = append(product.Options, productOption)
@@ -235,7 +236,7 @@ func makeProductOption(url string, parsed ParsedProductSize, price models.Produc
       Quantity: parsed.StockQuantity,
     },
     Size: models.ProductSizeOptions{
-      Brand: models.ProductSize{
+      Base: models.ProductSize{
         System: parsed.BrandSizeSystem,
         Value:  parsed.BrandTitle,
       },
@@ -257,16 +258,6 @@ func makeProductImageURL(parsed *ParsedProduct) string {
   }
 
   return url
-}
-
-func makeSizeString(parsed ParsedProductSize) string {
-  sizeString := parsed.BrandTitle
-
-  if parsed.BrandSizeSystem != "" {
-    sizeString = fmt.Sprintf("%s %s", sizeString, parsed.BrandSizeSystem)
-  }
-
-  return sizeString
 }
 
 func matchSize(sizeString string, sizesSet set.Set[string]) bool {

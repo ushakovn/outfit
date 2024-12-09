@@ -277,7 +277,7 @@ func (b *Transport) handleTrackingInputUrlMenu(ctx context.Context, bot *telegra
   }
 
   sizesValues := lo.Map(message.Product.Options, func(option models.ProductOption, _ int) string {
-    return option.Size.Brand.String()
+    return option.Size.Base.Value
   })
   sizesCount := len(message.Product.Options)
 
@@ -326,7 +326,8 @@ func (b *Transport) handleTrackingInputUrlMenu(ctx context.Context, bot *telegra
 что такой существует и может появиться в наличии на сайте 😉
 
 Пример корректного ввода 💬
-S INT, M INT`
+`
+    text += strings.Join(sizesValues, ",")
 
     err = b.sendMessage(ctx, sendMessageParams{
       ChatId: chatId,

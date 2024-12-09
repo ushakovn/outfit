@@ -2,7 +2,6 @@ package models
 
 import (
   "encoding/json"
-  "fmt"
   "math"
   neturl "net/url"
   "strings"
@@ -45,12 +44,8 @@ type ProductSize struct {
 }
 
 type ProductSizeOptions struct {
-  Brand             ProductSize        `bson:"brand" json:"brand"`
-  EmbedNotFoundSize *EmbedNotFoundSize `bson:"embed_not_found_size" json:"embed_not_found_size"`
-}
-
-type EmbedNotFoundSize struct {
-  StringValue string `bson:"string_value" json:"string_value"`
+  Base         ProductSize  `bson:"base" json:"base"`
+  NotFoundSize *ProductSize `bson:"not_found_size" json:"not_found_size"`
 }
 
 type ProductStock struct {
@@ -148,16 +143,6 @@ func NewProductDiff(stored, parsed Product) *ProductDiff {
 
 func (p *Product) SetParsedAt() {
   p.ParsedAt = time.Now()
-}
-
-func (s *ProductSize) String() string {
-  label := s.Value
-
-  if s.System != "" {
-    label = fmt.Sprintf("%s %s", label, s.System)
-  }
-
-  return label
 }
 
 func FindProductType(url string) ProductType {

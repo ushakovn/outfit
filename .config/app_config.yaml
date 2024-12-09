@@ -36,5 +36,5 @@ custom:
   telegram_token:
     group: "telegram"
     type: "string"
-    value: "6205725186:AAFfnWUUclsCcGLR4Uq2U-2vXqQ3PjK1NO4"
+    value: "7547767208:AAENli3VeA23rUuKsUrFHIItVQXusPfsj-k"
     description: "Токен telegram бота"

@@ -22,7 +22,7 @@ import (
 const baseURL = "https://oktyabrskateshop.com/"
 
 const (
-  schemaContext        = "https://schema.org/"
+  schemaContext        = "schema.org"
   schemaTypeProduct    = "Product"
   schemaTypeBreadcrumb = "BreadcrumbList"
 )
@@ -148,12 +148,13 @@ func (p *Parser) Parse(ctx context.Context, params models.ParseParams) (*models.
       }).
       Debug("oktyabr product has not parsed size: not found on site")
 
-    notFoundSize := models.EmbedNotFoundSize{
-      StringValue: size,
+    notFoundSize := models.ProductSize{
+      System: "N/A",
+      Value:  size,
     }
     productOption := models.ProductOption{
       Size: models.ProductSizeOptions{
-        EmbedNotFoundSize: &notFoundSize,
+        NotFoundSize: &notFoundSize,
       },
     }
     product.Options = append(product.Options, productOption)
@@ -172,28 +173,23 @@ func (p *Parser) Parse(ctx context.Context, params models.ParseParams) (*models.
 }
 
 func findProductSizes(doc *xpath.HtmlDocument) SkuToSizeMatching {
-  const path = `//form[contains(@action, 'cart')]//select[contains(@name, 'variant')]//option`
+  const path = `//form[contains(@id, 'product')]//input[contains(@name, 'variant')]`
 
   nodes := xpath.CollectElements(doc, path)
   matching := make(SkuToSizeMatching, len(nodes))
 
   for _, node := range nodes {
-    code, ok := xpath.GetAttribute(node, "value")
+    code, ok := xpath.GetAttribute(node, "data-id")
     if !ok {
       continue
     }
     code = strings.TrimSpace(code)
 
-    content, ok := xpath.GetContent(node, xpath.ShiftToLastChild)
+    value, ok := xpath.GetAttribute(node, "data-variant-size")
     if !ok {
       continue
     }
-
-    parts := strings.Split(content, "/")
-    if len(parts) < 2 {
-      continue
-    }
-    value := strings.TrimSpace(parts[0])
+    value = strings.TrimSpace(value)
 
     matching[code] = value
   }
@@ -278,7 +274,7 @@ func findBreadcrumbsJSON(doc *xpath.HtmlDocument) (*ParsedBreadcrumbs, error) {
 }
 
 func findBrandInHeading(doc *xpath.HtmlDocument) (string, error) {
-  const path = `//form[contains(@action, 'cart')]//h2[contains(@class, 'heading')]//a`
+  const path = `//div[contains(@itemtype, 'schema.org/Product')]//span[contains(@class, 'block')]`
 
   brand, exist := xpath.FindElement(doc, path, func(node *html.Node) bool {
     _, ok := xpath.GetContent(node, xpath.ShiftToLastChild)
@@ -309,7 +305,15 @@ func findBrandInBreadcrumbs(doc *xpath.HtmlDocument) (string, error) {
     return elems[i].Position > elems[j].Position
   })
 
-  content := strings.TrimSpace(elems[0].Name)
+  // Если в список breadcrumbs не входило название товара.
+  content := elems[0].Name
+
+  // Если в списке есть название бренда и название товара.
+  if len(elems) >= 2 {
+    content = elems[1].Name
+  }
+
+  content = strings.TrimSpace(content)
   content = html.UnescapeString(content)
 
   return content, nil
@@ -351,8 +355,9 @@ func findProductStocks(doc *xpath.HtmlDocument) (SizeToStockMatching, error) {
 
   attr, _ := xpath.GetAttributeContains(node, "stocks")
 
+  attr = html.UnescapeString(attr)
   attr = strings.ReplaceAll(attr, `'`, `"`)
-  attr = strings.TrimSpace(attr)
+  attr = strings.Trim(attr, "` ")
 
   parsed := make(ParsedProductStocks)
 
@@ -413,8 +418,8 @@ func makeProductOption(sizeString string, stockQuantity int64, parsedOffer Parse
       Quantity: stockQuantity,
     },
     Size: models.ProductSizeOptions{
-      Brand: models.ProductSize{
-        System: "INT",
+      Base: models.ProductSize{
+        System: "N/A",
         Value:  sizeString,
       },
     },

@@ -93,12 +93,11 @@ func (b Builder) SetTrackingPtr(tracking *Tracking) Builder {
 func (b Builder) BuildTrackingMessage() BuildResult {
   text := fmt.Sprintf(`Отслеживаемый товар 📦
 
-%s %s %s
+%s %s
 %s
 
 `, b.tracking.ParsedProduct.Brand,
     b.tracking.ParsedProduct.Category,
-    b.tracking.ParsedProduct.Description,
     b.tracking.ParsedProduct.URL)
 
   if len(b.tracking.Sizes.Values) != 0 {
@@ -137,37 +136,37 @@ func (b Builder) BuildTrackingMessage() BuildResult {
 func (b Builder) BuildProductMessage() BuildResult {
   text := fmt.Sprintf(`<b>Выбранный товар 📦</b>
 
-%s %s %s
+%s %s
 %s
-`, b.product.Brand, b.product.Category, b.product.Description,
+`, b.product.Brand, b.product.Category,
     b.product.URL)
 
   for index, option := range b.product.Options {
 
     if option.Stock.Quantity != 0 {
       text += fmt.Sprintf(`
-%d. Размер: %s %s в наличии
+%d. Размер: %s в наличии
 Кол-во: %d шт`,
         index+1,
-        option.Size.Brand.Value, option.Size.Brand.System,
+        option.Size.Base.Value,
         option.Stock.Quantity)
     }
 
-    if option.Stock.Quantity == 0 && option.Size.EmbedNotFoundSize == nil {
+    if option.Stock.Quantity == 0 && option.Size.NotFoundSize == nil {
       text += fmt.Sprintf(`
-%d. Размер: %s %s отсутствует в наличии`,
+%d. Размер: %s отсутствует в наличии`,
         index+1,
-        option.Size.Brand.Value, option.Size.Brand.System)
+        option.Size.Base.Value)
     }
 
-    if option.Size.EmbedNotFoundSize != nil {
+    if option.Size.NotFoundSize != nil {
       text += fmt.Sprintf(`
 %d. Размер: %s не был найден на сайте`,
         index+1,
-        option.Size.EmbedNotFoundSize.StringValue)
+        option.Size.NotFoundSize.Value)
     }
 
-    if option.Size.EmbedNotFoundSize == nil {
+    if option.Size.NotFoundSize == nil {
       text += fmt.Sprintf(`
 Цена: %s
 `,
@@ -211,10 +210,10 @@ func (b Builder) BuildProductDiffMessage() BuildResult {
 
   text := fmt.Sprintf(`<b>Оповещение по товару 📦</b>
 
-%s %s %s
+%s %s
 %s
 
-`, b.product.Brand, b.product.Category, b.product.Description,
+`, b.product.Brand, b.product.Category,
     b.product.URL)
 
   for _, option := range b.diff.Options {
@@ -223,14 +222,14 @@ func (b Builder) BuildProductDiffMessage() BuildResult {
     case option.Price.IsLower && !option.Stock.IsComeToInStock && option.Stock.IsAvailable:
       res.IsValid = true
 
-      text += fmt.Sprintf(`Цена на размер %s %s снижена 📉
+      text += fmt.Sprintf(`Цена на размер %s снижена 📉
 Текущая цена: %s 
 Старая цена: %s
 Разница: %s
 Доступен в количестве: %d шт
 
 `,
-        option.Size.Brand.Value, option.Size.Brand.System,
+        option.Size.Base.Value,
         option.Price.New, option.Price.Old, option.Price.Diff,
         option.Stock.Quantity)
 
@@ -238,14 +237,14 @@ func (b Builder) BuildProductDiffMessage() BuildResult {
     case option.Price.IsLower && option.Stock.IsComeToInStock:
       res.IsValid = true
 
-      text += fmt.Sprintf(`Размер: %s %s снова в наличии по сниженной цене 📦📉
+      text += fmt.Sprintf(`Размер: %s снова в наличии по сниженной цене 📦📉
 Текущая цена: %s 
 Старая цена: %s
 Разница: %s
 Доступен в количестве: %d шт
 
 `,
-        option.Size.Brand.Value, option.Size.Brand.System,
+        option.Size.Base.Value,
         option.Price.New, option.Price.Old, option.Price.Diff,
         option.Stock.Quantity)
 
@@ -253,12 +252,12 @@ func (b Builder) BuildProductDiffMessage() BuildResult {
     case !option.Price.IsLower && option.Stock.IsComeToInStock:
       res.IsValid = true
 
-      text += fmt.Sprintf(`Размер: %s %s снова в наличии 📦
+      text += fmt.Sprintf(`Размер: %s снова в наличии 📦
 Текущая цена: %s
 Доступен в количестве: %d шт
 
 `,
-        option.Size.Brand.Value, option.Size.Brand.System,
+        option.Size.Base.Value,
         option.Price.New,
         option.Stock.Quantity)
 
@@ -266,14 +265,14 @@ func (b Builder) BuildProductDiffMessage() BuildResult {
     case option.Price.IsHigher && option.Stock.IsAvailable && b.tracking.Flags.WithOptional:
       res.IsValid = true
 
-      text += fmt.Sprintf(`Цена на размер: %s %s возросла 📈
+      text += fmt.Sprintf(`Цена на размер: %s возросла 📈
 Текущая цена: %s 
 Старая цена: %s
 Разница: %s
 Доступен в количестве: %d шт
 
 `,
-        option.Size.Brand.Value, option.Size.Brand.System,
+        option.Size.Base.Value,
         option.Price.New, option.Price.Old, option.Price.Diff,
         option.Stock.Quantity)
 
@@ -281,14 +280,14 @@ func (b Builder) BuildProductDiffMessage() BuildResult {
     case option.Price.IsHigher && option.Stock.IsAvailable && option.Stock.IsSellUp && b.tracking.Flags.WithOptional:
       res.IsValid = true
 
-      text += fmt.Sprintf(`Цена на размер: %s %s возросла 📈
+      text += fmt.Sprintf(`Цена на размер: %s возросла 📈
 Текущая цена: %s
 Старая цена: %s
 Разница: %s
 Количество товара уменьшилось c %d до %d 📉
 
 `,
-        option.Size.Brand.Value, option.Size.Brand.System,
+        option.Size.Base.Value,
         option.Price.New, option.Price.Old, option.Price.Diff,
         option.Stock.OldQuantity, option.Stock.Quantity)
 
@@ -296,9 +295,9 @@ func (b Builder) BuildProductDiffMessage() BuildResult {
     case option.Stock.IsAvailable && option.Stock.IsSellUp && b.tracking.Flags.WithOptional:
       res.IsValid = true
 
-      text += fmt.Sprintf(`Количество товара в размере %s %s уменьшилось c %d до %d 📉
+      text += fmt.Sprintf(`Количество товара в размере %s уменьшилось c %d до %d 📉
 Текущая цена: %s`,
-        option.Size.Brand.Value, option.Size.Brand.System,
+        option.Size.Base.Value,
         option.Stock.OldQuantity, option.Stock.Quantity,
         option.Price.New)
     }
