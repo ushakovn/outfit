@@ -259,6 +259,15 @@ func (b *Transport) handleTrackingInputUrlMenu(ctx context.Context, bot *telegra
       WithField("menu", models.TrackingInputUrlMenu).
       Errorf("b.createMessage: %v", err)
 
+    b.sendErrorMessage(ctx, sendErrorMessageParams{
+      ChatId: chatId,
+      Text: `<b>Бот не смог получить данные 😟</b>
+
+Убедитесь, что страница точно указывает на карточку товара
+Если все верно, и ошибка повторяется снова, отправьте команду /alert`,
+      Menu: models.TrackingInputUrlMenu,
+    })
+
     return
   }
 
@@ -322,8 +331,7 @@ func (b *Transport) handleTrackingInputUrlMenu(ctx context.Context, bot *telegra
 
 Размеры необходимо вводить через запятую, в точности так, как указано в списке
 
-Кстати, вы можете ввести размер, которого нет в списке, если точно знаете, 
-что такой существует и может появиться в наличии на сайте 😉
+Кстати, вы можете ввести размер, которого нет в списке, если точно знаете, что такой существует и может появиться в наличии на сайте 😉
 
 Пример корректного ввода 💬
 `
@@ -1003,6 +1011,35 @@ func (b *Transport) handleShopList(ctx context.Context, bot *telegram.Bot, updat
       WithField("chat_id", chatId).
       WithField("menu", models.ShopListMenu).
       Errorf("b.upsertSession: %v", err)
+
+    return
+  }
+}
+
+func (b *Transport) handleAlert(ctx context.Context, bot *telegram.Bot, update *tgmodels.Update) {
+  chatId, ok := findChatIdInUpdate(update)
+  if !ok {
+    log.
+      WithField("update.message", update.Message).
+      Warn("chat_id not found")
+
+    return
+  }
+
+  reply := newReplyKeyboard(models.ShopListMenu).
+    Row().Button("Назад", bot, telegram.MatchTypeExact, b.handleStartSilentMenu)
+
+  err := b.sendMessage(ctx, sendMessageParams{
+    ChatId: chatId,
+    Text: `Спасибо, что обратились с проблемой 
+Мы проанализируем возникшие ошибки и устраним их 🫡`,
+    Reply: reply,
+  })
+  if err != nil {
+    log.
+      WithField("chat_id", chatId).
+      WithField("menu", models.TrackingDeleteConfirmMenu).
+      Errorf("b.sendMessage: %v", err)
 
     return
   }

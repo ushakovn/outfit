@@ -12,6 +12,7 @@ import (
 
 func (b *Transport) registerHandlers(ctx context.Context) {
   b.registerStartHandler(ctx)
+  b.registerAlertHandler(ctx)
   b.registerTrackingInputUrlMenuHandler(ctx)
   b.registerTrackingInputSizesMenuHandler(ctx)
 }
@@ -20,6 +21,13 @@ func (b *Transport) registerStartHandler(_ context.Context) {
   b.deps.Telegram.RegisterHandler(
     telegram.HandlerTypeMessageText, "/start",
     telegram.MatchTypeExact, b.handleStartMenu,
+  )
+}
+
+func (b *Transport) registerAlertHandler(_ context.Context) {
+  b.deps.Telegram.RegisterHandler(
+    telegram.HandlerTypeMessageText, "/alert",
+    telegram.MatchTypeExact, b.handleAlert,
   )
 }
 

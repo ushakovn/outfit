@@ -22,6 +22,27 @@ import (
   "github.com/ushakovn/outfit/pkg/validator"
 )
 
+type sendErrorMessageParams struct {
+  ChatId int64
+  Text   string
+  Menu   models.SessionMenu
+}
+
+func (b *Transport) sendErrorMessage(ctx context.Context, params sendErrorMessageParams) {
+  err := b.sendMessage(ctx, sendMessageParams{
+    ChatId: params.ChatId,
+    Text:   params.Text,
+  })
+  if err != nil {
+    log.
+      WithField("chat_id", params.ChatId).
+      WithField("menu", params.Menu).
+      Errorf("b.sendMessage: %v", err)
+
+    return
+  }
+}
+
 func makeCutSizeValuesString(values []string) string {
   if len(values) > 3 {
     cop := make([]string, 3)

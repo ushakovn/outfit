@@ -11,6 +11,15 @@ import (
   "github.com/ushakovn/outfit/internal/models"
 )
 
+func (c *Tracker) makeTrackingFilters() map[string]any {
+  filters := make(map[string]any)
+
+  if c.config.ProductType != "" {
+    filters["parsed_product.type"] = c.config.ProductType
+  }
+  return filters
+}
+
 func setTrackingUpdates(tracking *models.Tracking, product *models.Product) {
   tracking.ParsedProduct = lo.FromPtr(product)
   tracking.Timestamps.HandledAt = lo.ToPtr(time.Now())

@@ -14,9 +14,6 @@ func (c *Tracker) Start(ctx context.Context) error {
   if !c.config.IsCron {
     return fmt.Errorf("method called without cron flag")
   }
-  if c.config.ProductType == "" {
-    return fmt.Errorf("product type not specified")
-  }
 
   log.
     WithField("product_type", c.config.ProductType).
@@ -30,6 +27,8 @@ func (c *Tracker) Start(ctx context.Context) error {
       Collection: "trackings",
       StructType: models.Tracking{},
     },
+    Filters: c.makeTrackingFilters(),
+
     Callback: func(ctx context.Context, value any) error {
       tracking, ok := value.(*models.Tracking)
       if !ok {
@@ -71,13 +70,12 @@ func (c *Tracker) Start(ctx context.Context) error {
 
       return nil
     },
-    Filters: map[string]any{
-      "parsed_product.type": c.config.ProductType,
-    },
   })
   if err != nil {
     return fmt.Errorf("c.deps.Mongodb.Scan: %w", err)
   }
+
+  pool.StopWait()
 
   log.
     WithField("product_type", c.config.ProductType).
