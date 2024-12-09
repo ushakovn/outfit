@@ -327,7 +327,8 @@ func (b *Transport) handleTrackingInputUrlMenu(ctx context.Context, bot *telegra
 
 Пример корректного ввода 💬
 `
-    text += strings.Join(sizesValues, ",")
+
+    text += makeCutSizeValuesString(sizesValues)
 
     err = b.sendMessage(ctx, sendMessageParams{
       ChatId: chatId,
@@ -348,8 +349,11 @@ func (b *Transport) handleTrackingInputUrlMenu(ctx context.Context, bot *telegra
     ChatId: chatId,
     Menu:   models.TrackingInputUrlMenu,
     Tracking: &models.Tracking{
-      ChatId:        chatId,
-      URL:           parsedUrl,
+      ChatId: chatId,
+      URL:    parsedUrl,
+      Sizes: models.ParseSizesParams{
+        Values: sizesValues,
+      },
       ParsedProduct: message.Product,
       Timestamps: models.TrackingTimestamps{
         CreatedAt: time.Now(),
@@ -390,7 +394,7 @@ func (b *Transport) handleTrackingInputSizesMenu(ctx context.Context, bot *teleg
   reply := newReplyKeyboard(models.TrackingInputSizesMenu).
     Row().Button("Назад", bot, telegram.MatchTypeExact, b.handleStartSilentMenu)
 
-  sizesValues, errMessage := parseTrackingInputSizes(update.Message.Text)
+  sizesValues, errMessage := parseTrackingInputSizes(update.Message.Text, session)
 
   if errMessage != "" {
     err = b.sendMessage(ctx, sendMessageParams{

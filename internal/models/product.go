@@ -105,14 +105,12 @@ func NewProductDiff(stored, parsed Product) *ProductDiff {
   optionsDiff := make([]ProductOptionDiff, 0, len(parsed.Options))
 
   for _, parsedOption := range parsed.Options {
-    storedOption, ok := storedOptionsBySize[parsedOption.Size]
-    if !ok {
-      continue
-    }
+    storedOption := storedOptionsBySize[parsedOption.Size]
 
     stockDiff := ProductStockDiff{
-      OldQuantity:     storedOption.Stock.Quantity,
-      Quantity:        parsedOption.Stock.Quantity,
+      OldQuantity: storedOption.Stock.Quantity,
+      Quantity:    parsedOption.Stock.Quantity,
+
       IsSellUp:        parsedOption.Stock.Quantity <= 5 && parsedOption.Stock.Quantity < storedOption.Stock.Quantity,
       IsAvailable:     parsedOption.Stock.Quantity > 0,
       IsComeToInStock: parsedOption.Stock.Quantity > 0 && storedOption.Stock.Quantity <= 0,
@@ -122,17 +120,19 @@ func NewProductDiff(stored, parsed Product) *ProductDiff {
     priceDiffAbs := int64(math.Abs(float64(priceDiffInt)))
 
     priceDiff := ProductPriceDiff{
-      IsLower:  priceDiffInt > 0,
-      IsHigher: priceDiffInt < 0,
-      New:      money.String(parsedOption.Price.Discount.IntValue),
-      Old:      money.String(storedOption.Price.Discount.IntValue),
-      Diff:     money.String(priceDiffAbs),
+      IsLower:  priceDiffInt > 0 && storedOption.Price.Discount.IntValue != 0,
+      IsHigher: priceDiffInt < 0 && storedOption.Price.Discount.IntValue != 0,
+
+      New:  money.String(parsedOption.Price.Discount.IntValue),
+      Old:  money.String(storedOption.Price.Discount.IntValue),
+      Diff: money.String(priceDiffAbs),
     }
 
     optionsDiff = append(optionsDiff, ProductOptionDiff{
       Stock: stockDiff,
       Price: priceDiff,
-      Size:  parsedOption.Size,
+
+      Size: parsedOption.Size,
     })
   }
 

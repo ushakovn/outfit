@@ -194,7 +194,9 @@ func findProductSizes(doc *xpath.HtmlDocument) SkuToSizeMatching {
     if len(parts) < 2 {
       continue
     }
-    value := strings.TrimSpace(parts[0])
+
+    value := strings.ReplaceAll(parts[0], " ", "")
+    value = strings.TrimSpace(value)
 
     matching[code] = value
   }

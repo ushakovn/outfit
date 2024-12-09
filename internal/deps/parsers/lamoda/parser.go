@@ -67,16 +67,19 @@ func (p *Parser) findProductNodeContent(ctx context.Context, url string) (string
   }
 
   script, exist := xpath.FindElement(doc, `//script`, func(node *html.Node) bool {
-    content, ok := xpath.GetContent(node, xpath.ShiftToLastChild)
+    content, _ := xpath.RenderContent(node, xpath.ShiftToLastChild)
 
-    return ok && regexNUXT.MatchString(content)
+    return regexNUXT.MatchString(content)
   })
 
   if !exist {
     return "", fmt.Errorf("product script node not found")
   }
 
-  content, _ := xpath.GetContent(script, xpath.ShiftToLastChild)
+  content, err := xpath.RenderContent(script, xpath.ShiftToLastChild)
+  if err != nil {
+    return "", fmt.Errorf("xpath.RenderContent: %w", err)
+  }
 
   return content, nil
 }

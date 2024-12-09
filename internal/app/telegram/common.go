@@ -22,6 +22,17 @@ import (
   "github.com/ushakovn/outfit/pkg/validator"
 )
 
+func makeCutSizeValuesString(values []string) string {
+  if len(values) > 3 {
+    cop := make([]string, 3)
+    copy(cop, values)
+
+    return strings.Join(cop, ",")
+  }
+
+  return strings.Join(values, ",")
+}
+
 func setTrackingSizes(tracking *models.Tracking, sizes []string) {
   tracking.Sizes.Values = sizes
 }
@@ -240,17 +251,19 @@ https://www.lamoda.ru/p/rtlacv500501/clothes-carharttwip-dzhinsy/
   return url, ""
 }
 
-func parseTrackingInputSizes(fields string) (values []string, err string) {
+func parseTrackingInputSizes(fields string, session *models.Session) (values []string, err string) {
   sizesSlice := strings.Split(fields, ",")
 
   if len(sizesSlice) == 0 {
-    err = `Не удалось найти список размеров для товара 😟
+    exampleSizes := makeCutSizeValuesString(session.Tracking.Sizes.Values)
+
+    err = fmt.Sprintf(`Не удалось найти список размеров для товара 😟
 
 Пример корректного ввода 💬
-S INT, M INT
+%s
 
 Попробуйте еще раз 😉
-`
+`, exampleSizes)
 
     return nil, err
   }
