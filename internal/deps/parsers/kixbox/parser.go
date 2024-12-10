@@ -19,15 +19,13 @@ import (
   "golang.org/x/net/html"
 )
 
-const baseURL = "https://kixbox.ru"
-
 const (
   schemaContext        = "schema.org"
   schemaTypeProduct    = "Product"
   schemaTypeBreadcrumb = "BreadcrumbList"
 )
 
-var regexURL = regexp.MustCompile(`https?://(www\.)?kixbox.ru/.+`)
+var regexURL = regexp.MustCompile(`https?://(www\.)?kixbox\.ru/.+`)
 
 type Parser struct {
   deps Dependencies

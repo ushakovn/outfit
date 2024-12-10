@@ -18,13 +18,10 @@ import (
   "golang.org/x/net/html"
 )
 
-const (
-  baseURL    = "https://lamoda.ru"
-  baseCdnURL = "https://a.lmcdn.ru/product"
-)
+const baseCdnURL = "https://a.lmcdn.ru/product"
 
 var (
-  regexURL  = regexp.MustCompile(`https?://(www\.)?lamoda.ru/.+`)
+  regexURL  = regexp.MustCompile(`https?://(www\.)?lamoda\.ru/.+`)
   regexNUXT = regexp.MustCompile(`.*__NUXT__.*`)
 )
 

@@ -10,6 +10,7 @@ import (
   "github.com/ushakovn/outfit/internal/app/tracker"
   "github.com/ushakovn/outfit/internal/deps/parsers/kixbox"
   "github.com/ushakovn/outfit/internal/deps/parsers/lamoda"
+  "github.com/ushakovn/outfit/internal/deps/parsers/lime"
   "github.com/ushakovn/outfit/internal/deps/parsers/oktyabr"
   "github.com/ushakovn/outfit/internal/deps/storage/mongodb"
   "github.com/ushakovn/outfit/internal/models"
@@ -47,13 +48,13 @@ func main() {
     log.Fatalf("mongodb.NewClient: %v", err)
   }
 
-  xpathParser := xpath.NewParser(xpath.Dependencies{
-    Client: resty.NewWithClient(http.DefaultClient),
-  })
+  httpClient := resty.NewWithClient(http.DefaultClient)
+  xpathParser := xpath.NewParser(xpath.Dependencies{Client: httpClient})
 
   lamodaParser := lamoda.NewParser(lamoda.Dependencies{Xpath: xpathParser})
   kixboxParser := kixbox.NewParser(kixbox.Dependencies{Xpath: xpathParser})
   oktyabrParser := oktyabr.NewParser(oktyabr.Dependencies{Xpath: xpathParser})
+  limeParser := lime.NewParser(lime.Dependencies{Client: httpClient})
 
   trackerCron := tracker.NewTrackerCron(productType, tracker.Dependencies{
     Mongodb: mongoClient,
@@ -61,6 +62,7 @@ func main() {
       models.ProductTypeLamoda:  lamodaParser,
       models.ProductTypeKixbox:  kixboxParser,
       models.ProductTypeOktyabr: oktyabrParser,
+      models.ProductTypeLime:    limeParser,
     },
   })
 

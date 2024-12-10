@@ -16,6 +16,7 @@ const (
   ProductTypeLamoda  ProductType = "lamoda"
   ProductTypeKixbox  ProductType = "kixbox"
   ProductTypeOktyabr ProductType = "oktyabr"
+  ProductTypeLime    ProductType = "lime"
 )
 
 type ProductType = string
@@ -155,6 +156,9 @@ func FindProductType(url string) ProductType {
     return ProductTypeKixbox
   case strings.Contains(parsed.Host, "oktyabr"):
     return ProductTypeOktyabr
+  case strings.Contains(parsed.Host, "lime"):
+    return ProductTypeLime
+
   }
 
   return ProductTypeUnknown

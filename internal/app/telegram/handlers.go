@@ -1115,8 +1115,9 @@ func (b *Transport) handleShopList(ctx context.Context, bot *telegram.Bot, updat
     ChatId: chatId,
     Text: `Магазины, с которыми работает бот:
 1. Lamoda
-2. Kixbox
-3. Октябрь Скейтшоп
+2. Lime
+3. Kixbox
+4. Октябрь Скейтшоп
 Список постепенно будет пополняться 🤓`,
     Reply: reply,
   })
