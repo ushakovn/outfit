@@ -29,7 +29,8 @@ func (b *Transport) handleStartMenu(ctx context.Context, bot *telegram.Bot, upda
   reply := newReplyKeyboard(models.StartMenu).
     Row().Button("Мои отслеживания ✉️", bot, telegram.MatchTypeExact, b.handleTrackingListMenu).
     Row().Button("Добавить отслеживание 📨", bot, telegram.MatchTypeExact, b.handleTrackingInsertMenu).
-    Row().Button("Поддерживаемые магазины 👜", bot, telegram.MatchTypeExact, b.handleShopList)
+    Row().Button("Поддерживаемые магазины 👜", bot, telegram.MatchTypeExact, b.handleShopList).
+    Row().Button("Обратная связь 📧", bot, telegram.MatchTypeExact, b.handleInsertIssueMenu)
 
   text := `<b>Бот создан для отслеживания товаров 💬</b>
 
@@ -316,7 +317,7 @@ func (b *Transport) handleTrackingInputUrlMenu(ctx context.Context, bot *telegra
 
 Если все хорошо, выберите необходимые размеры из списка
 
-Доступные размеры: %s
+Доступные размеры: 
 `
     sizesString := strings.Join(sizesValues, ", ")
     text += strings.TrimSpace(sizesString)
@@ -433,20 +434,13 @@ func (b *Transport) handleTrackingInputSizesMenu(ctx context.Context, bot *teleg
     Row().Button("Далее", bot, telegram.MatchTypeExact, b.handleTrackingInputFlagMenu).
     Row().Button("Назад", bot, telegram.MatchTypeExact, b.handleStartSilentMenu)
 
-  text := `Введенные вами размеры:
-`
+  sizesString := strings.Join(sizesValues, ", ")
+  sizesString = strings.TrimSpace(sizesString)
 
-  for index, label := range sizesValues {
-    text += fmt.Sprintf("%d. %s", index+1, label)
+  text := fmt.Sprintf(`Введенные вами размеры: %s
+`, sizesString)
 
-    if index != len(sizesValues)-1 {
-      text += "\n"
-    }
-  }
-  text = strings.TrimSpace(text)
-
-  text += `
-Если все верно, нажмите далее 😉`
+  text += `Если все верно, нажмите далее 😉`
 
   err = b.sendMessage(ctx, sendMessageParams{
     ChatId: chatId,
@@ -1143,6 +1137,241 @@ func (b *Transport) handleShopList(ctx context.Context, bot *telegram.Bot, updat
     log.
       WithField("chat_id", chatId).
       WithField("menu", models.ShopListMenu).
+      Errorf("b.upsertSession: %v", err)
+
+    return
+  }
+}
+
+func (b *Transport) handleInsertIssueMenu(ctx context.Context, bot *telegram.Bot, update *tgmodels.Update) {
+  chatId, ok := findChatIdInUpdate(update)
+  if !ok {
+    log.
+      WithField("update.message", update.Message).
+      WithField("menu", models.IssueInsertMenu).
+      Warn("chat_id not found")
+
+    return
+  }
+
+  reply := newReplyKeyboard(models.IssueInsertMenu).
+    Row().Button("Улучшение 👨‍🔧", bot, telegram.MatchTypeExact, b.handleIssueInputStoryMenu).
+    Row().Button("Баг 😟", bot, telegram.MatchTypeExact, b.handleIssueInputBugMenu).
+    Row().Button("Назад", bot, telegram.MatchTypeExact, b.handleStartSilentMenu)
+
+  err := b.sendMessage(ctx, sendMessageParams{
+    ChatId: chatId,
+    Text: `Выберите категорию обратной связи: 
+баг или улучшение 😉`,
+    Reply: reply,
+  })
+  if err != nil {
+    log.
+      WithField("chat_id", chatId).
+      WithField("menu", models.IssueInsertMenu).
+      Errorf("b.sendMessage: %v", err)
+
+    return
+  }
+}
+
+func (b *Transport) handleIssueInputTextMenu(ctx context.Context, bot *telegram.Bot, update *tgmodels.Update) {
+  chatId, ok := findChatIdInUpdate(update)
+  if !ok {
+    log.
+      WithField("update.message", update.Message).
+      WithField("menu", models.IssueInputTextMenu).
+      Warn("chat_id not found")
+
+    return
+  }
+
+  session, err := b.findSession(ctx, chatId)
+  if err != nil {
+    log.
+      WithField("chat_id", chatId).
+      WithField("menu", models.IssueInputTextMenu).
+      Errorf("b.findSession: %v", err)
+
+    return
+  }
+
+  session.Entities.Issue.Text = parseIssueText(update.Message.Text)
+
+  err = b.upsertSession(ctx, upsertSessionParams{
+    ChatId:   chatId,
+    Menu:     models.IssueInputTextMenu,
+    Entities: session.Entities,
+  })
+  if err != nil {
+    log.
+      WithField("chat_id", chatId).
+      WithField("menu", models.IssueInputTextMenu).
+      Errorf("b.upsertSession: %v", err)
+
+    return
+  }
+
+  reply := newReplyKeyboard(models.IssueInputTextMenu).
+    Row().Button("Подтвердить 📧", bot, telegram.MatchTypeExact, b.handleIssueInsertConfirmMenu).
+    Row().Button("Назад", bot, telegram.MatchTypeExact, b.handleStartSilentMenu)
+
+  err = b.sendMessage(ctx, sendMessageParams{
+    ChatId: chatId,
+    Text:   `Мы получили ваше сообщение, осталось его подтвердить 📧`,
+    Reply:  reply,
+  })
+  if err != nil {
+    log.
+      WithField("chat_id", chatId).
+      WithField("menu", models.IssueInsertMenu).
+      Errorf("b.sendMessage: %v", err)
+
+    return
+  }
+}
+
+func (b *Transport) handleIssueInsertConfirmMenu(ctx context.Context, bot *telegram.Bot, update *tgmodels.Update) {
+  chatId, ok := findChatIdInUpdate(update)
+  if !ok {
+    log.
+      WithField("update.message", update.Message).
+      WithField("menu", models.IssueInsertConfirmMenu).
+      Warn("chat_id not found")
+
+    return
+  }
+
+  session, err := b.findSession(ctx, chatId)
+  if err != nil {
+    log.
+      WithField("chat_id", chatId).
+      WithField("menu", models.IssueInsertConfirmMenu).
+      Errorf("b.findSession: %v", err)
+
+    return
+  }
+
+  err = b.insertIssue(ctx, session.Entities.Issue)
+  if err != nil {
+    log.
+      WithField("chat_id", chatId).
+      WithField("menu", models.IssueInsertConfirmMenu).
+      Errorf("b.insertIssue: %v", err)
+
+    return
+  }
+
+  reply := newReplyKeyboard(models.IssueInsertConfirmMenu).
+    Row().Button("Назад", bot, telegram.MatchTypeExact, b.handleStartSilentMenu)
+
+  err = b.sendMessage(ctx, sendMessageParams{
+    ChatId: chatId,
+    Text:   `Спасибо за вашу обратную связь 😉`,
+    Reply:  reply,
+  })
+  if err != nil {
+    log.
+      WithField("chat_id", chatId).
+      WithField("menu", models.IssueInsertConfirmMenu).
+      Errorf("b.sendMessage: %v", err)
+
+    return
+  }
+}
+
+func (b *Transport) handleIssueInputBugMenu(ctx context.Context, bot *telegram.Bot, update *tgmodels.Update) {
+  chatId, ok := findChatIdInUpdate(update)
+  if !ok {
+    log.
+      WithField("update.message", update.Message).
+      WithField("menu", models.IssueInputTypeMenu).
+      Warn("chat_id not found")
+
+    return
+  }
+
+  reply := newReplyKeyboard(models.IssueInputTypeMenu).
+    Row().Button("Назад", bot, telegram.MatchTypeExact, b.handleStartSilentMenu)
+
+  err := b.sendMessage(ctx, sendMessageParams{
+    ChatId: chatId,
+    Text:   `Опишите возникшую у вас проблему 💬`,
+    Reply:  reply,
+  })
+  if err != nil {
+    log.
+      WithField("chat_id", chatId).
+      WithField("menu", models.IssueInputTypeMenu).
+      Errorf("b.sendMessage: %v", err)
+
+    return
+  }
+
+  err = b.upsertSession(ctx, upsertSessionParams{
+    ChatId: chatId,
+    Menu:   models.IssueInputTypeMenu,
+    Entities: &models.SessionEntities{
+      Issue: &models.Issue{
+        ChatId:    chatId,
+        Type:      models.IssueTypeBug,
+        CreatedAt: time.Now(),
+      },
+    },
+  })
+  if err != nil {
+    log.
+      WithField("chat_id", chatId).
+      WithField("menu", models.IssueInputTypeMenu).
+      Errorf("b.upsertSession: %v", err)
+
+    return
+  }
+}
+
+func (b *Transport) handleIssueInputStoryMenu(ctx context.Context, bot *telegram.Bot, update *tgmodels.Update) {
+  chatId, ok := findChatIdInUpdate(update)
+  if !ok {
+    log.
+      WithField("update.message", update.Message).
+      WithField("menu", models.IssueInputTypeMenu).
+      Warn("chat_id not found")
+
+    return
+  }
+
+  reply := newReplyKeyboard(models.IssueInputTypeMenu).
+    Row().Button("Назад", bot, telegram.MatchTypeExact, b.handleStartSilentMenu)
+
+  err := b.sendMessage(ctx, sendMessageParams{
+    ChatId: chatId,
+    Text:   `Опишите улучшения бота, которые вам хотелось бы видеть 💬`,
+    Reply:  reply,
+  })
+  if err != nil {
+    log.
+      WithField("chat_id", chatId).
+      WithField("menu", models.IssueInputTypeMenu).
+      Errorf("b.sendMessage: %v", err)
+
+    return
+  }
+
+  err = b.upsertSession(ctx, upsertSessionParams{
+    ChatId: chatId,
+    Menu:   models.IssueInputTypeMenu,
+    Entities: &models.SessionEntities{
+      Issue: &models.Issue{
+        ChatId:    chatId,
+        Type:      models.IssueTypeStory,
+        CreatedAt: time.Now(),
+      },
+    },
+  })
+  if err != nil {
+    log.
+      WithField("chat_id", chatId).
+      WithField("menu", models.IssueInputTypeMenu).
       Errorf("b.upsertSession: %v", err)
 
     return

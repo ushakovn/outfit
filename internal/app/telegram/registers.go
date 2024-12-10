@@ -30,6 +30,11 @@ func (b *Transport) registerHandlers(ctx context.Context) {
     Menu:    models.TrackingCommentMenu,
     Handler: b.handleTrackingInputCommentMenu,
   })
+
+  b.registerTextHandler(ctx, registerTextHandlerParams{
+    Menu:    models.IssueInputTypeMenu,
+    Handler: b.handleIssueInputTextMenu,
+  })
 }
 
 type registerCommandHandlerParams struct {

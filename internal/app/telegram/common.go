@@ -50,10 +50,14 @@ func makeCutSizeValuesString(values []string) string {
     cop := make([]string, 3)
     copy(cop, values)
 
-    return strings.Join(cop, ",")
+    sizesString := strings.Join(cop, ", ")
+    sizesString = strings.TrimSpace(sizesString)
   }
 
-  return strings.Join(values, ",")
+  sizesString := strings.Join(values, ", ")
+  sizesString = strings.TrimSpace(sizesString)
+
+  return sizesString
 }
 
 func setTrackingSizes(tracking *models.Tracking, sizes []string) {
@@ -148,6 +152,7 @@ type upsertSessionParams struct {
   Menu      models.SessionMenu
   MessageID *int64
   Tracking  *models.Tracking
+  Entities  *models.SessionEntities
 }
 
 func (b *Transport) upsertSession(ctx context.Context, params upsertSessionParams) error {
@@ -158,6 +163,7 @@ func (b *Transport) upsertSession(ctx context.Context, params upsertSessionParam
       Menu: params.Menu,
     },
     Tracking:  params.Tracking,
+    Entities:  params.Entities,
     UpdatedAt: time.Now(),
   }
 
@@ -255,6 +261,13 @@ func (b *Transport) createMessage(ctx context.Context, url string) (*models.Send
   }
 
   return message, nil
+}
+
+func parseIssueText(fields string) (text string) {
+  text = html.UnescapeString(fields)
+  text = strings.TrimSpace(fields)
+
+  return text
 }
 
 func parseTrackingComment(fields string) (comment string, err string) {
@@ -400,4 +413,19 @@ func (b *Transport) newTrackingSlider(params trackingSliderParams) *tgslider.Sli
     tgslider.OnSelect("Удалить", true, b.handleTrackingDeleteMenu),
     tgslider.OnCancel("Назад", true, b.handleTrackingSilentMenu),
   )
+}
+
+func (b *Transport) insertIssue(ctx context.Context, issue *models.Issue) error {
+  _, err := b.deps.Mongodb.Insert(ctx, mongodb.InsertParams{
+    CommonParams: mongodb.CommonParams{
+      Database:   "outfit",
+      Collection: "issues",
+    },
+    Document: issue,
+  })
+  if err != nil {
+    return fmt.Errorf("b.deps.Mongodb.Insert: %w", err)
+  }
+
+  return nil
 }
