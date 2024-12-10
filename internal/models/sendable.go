@@ -4,6 +4,7 @@ import (
   "fmt"
   "strings"
   "time"
+  "unicode/utf8"
 
   "github.com/google/uuid"
   "github.com/samber/lo"
@@ -101,19 +102,19 @@ func (b Builder) BuildTrackingMessage() BuildResult {
     b.tracking.ParsedProduct.URL)
 
   if len(b.tracking.Sizes.Values) != 0 {
-    text += `Указанные размеры:
-`
+    sizesString := strings.Join(b.tracking.Sizes.Values, ", ")
+    sizesString = strings.TrimSpace(sizesString)
+
+    text += fmt.Sprintf(`Указанные размеры: %s
+`, sizesString)
   }
 
-  for index, label := range b.tracking.Sizes.Values {
-    text += fmt.Sprintf("%d. %s", index+1, label)
-
-    if index != len(b.tracking.Sizes.Values)-1 {
-      text += "\n"
-    }
+  if utf8.RuneCountInString(b.tracking.Comment) != 0 {
+    text += fmt.Sprintf(`
+Комментарий к отслеживанию 💬
+%s
+`, b.tracking.Comment)
   }
-
-  text = strings.TrimSpace(text)
 
   return BuildResult{
     Message: SendableMessage{

@@ -8,6 +8,7 @@ type Tracking struct {
   Sizes         ParseSizesParams   `bson:"sizes" json:"sizes"`
   ParsedProduct Product            `bson:"parsed_product" json:"parsed_product"`
   Flags         TrackingFlags      `bson:"flags" json:"flags"`
+  Comment       string             `bson:"comment" json:"comment"`
   Timestamps    TrackingTimestamps `bson:"timestamps" json:"timestamps"`
 }
 

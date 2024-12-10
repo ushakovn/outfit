@@ -11,6 +11,8 @@ const (
   TrackingInputUrlMenu      SessionMenu = "tracking_input_url_menu"
   TrackingInputSizesMenu    SessionMenu = "tracking_input_sizes_menu"
   TrackingInputFlagMenu     SessionMenu = "tracking_input_flag_menu"
+  TrackingCommentMenu       SessionMenu = "tracking_comment_menu"
+  TrackingInputCommentMenu  SessionMenu = "tracking_input_comment_menu"
   TrackingFlagConfirmMenu   SessionMenu = "tracking_flag_confirm_menu"
   TrackingDeleteMenu        SessionMenu = "tracking_delete_menu"
   TrackingDeleteConfirmMenu SessionMenu = "tracking_delete_confirm_menu"

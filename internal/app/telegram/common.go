@@ -6,6 +6,7 @@ import (
   "fmt"
   "strings"
   "time"
+  "unicode/utf8"
 
   telegram "github.com/go-telegram/bot"
   tgmodels "github.com/go-telegram/bot/models"
@@ -20,6 +21,7 @@ import (
   "github.com/ushakovn/outfit/internal/models"
   "github.com/ushakovn/outfit/pkg/stringer"
   "github.com/ushakovn/outfit/pkg/validator"
+  "golang.org/x/net/html"
 )
 
 type sendErrorMessageParams struct {
@@ -255,7 +257,33 @@ func (b *Transport) createMessage(ctx context.Context, url string) (*models.Send
   return message, nil
 }
 
-func parseTrackingInputURL(fields string) (url string, err string) {
+func parseTrackingComment(fields string) (comment string, err string) {
+  comment = html.UnescapeString(fields)
+  comment = strings.TrimSpace(fields)
+
+  if comment == "" {
+    err = `Кажется, комментарий пустой 😟
+Пример корректного комментария 💬
+
+Кепка Stussy черная 
+#stussy #кепка #kixbox
+
+Попробуйте ввести еще раз 😉
+`
+    return "", err
+  }
+
+  if utf8.RuneCountInString(comment) > 100 {
+    err = `Комментарий может содержать до 100 символов 👀
+Попробуйте ввести еще раз 😉
+`
+    return "", err
+  }
+
+  return comment, ""
+}
+
+func parseTrackingURL(fields string) (url string, err string) {
   url = stringer.ExtractURL(fields)
 
   if e := validator.URL(url); e != nil {
@@ -272,7 +300,7 @@ https://www.lamoda.ru/p/rtlacv500501/clothes-carharttwip-dzhinsy/
   return url, ""
 }
 
-func parseTrackingInputSizes(fields string, session *models.Session) (values []string, err string) {
+func parseTrackingSizes(fields string, session *models.Session) (values []string, err string) {
   sizesSlice := strings.Split(fields, ",")
 
   if len(sizesSlice) == 0 {
@@ -290,7 +318,7 @@ func parseTrackingInputSizes(fields string, session *models.Session) (values []s
   }
 
   for _, value := range sizesSlice {
-    value = strings.TrimSpace(value)
+    value = strings.ReplaceAll(value, " ", "")
 
     values = append(values, value)
   }

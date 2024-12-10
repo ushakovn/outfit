@@ -171,7 +171,7 @@ func (b *Transport) handleTrackingInputUrlMenu(ctx context.Context, bot *telegra
   reply := newReplyKeyboard(models.TrackingInputUrlMenu).
     Row().Button("Назад", bot, telegram.MatchTypeExact, b.handleStartSilentMenu)
 
-  parsedUrl, errMessage := parseTrackingInputURL(update.Message.Text)
+  parsedUrl, errMessage := parseTrackingURL(update.Message.Text)
 
   if errMessage != "" {
     err := b.sendMessage(ctx, sendMessageParams{
@@ -264,7 +264,8 @@ func (b *Transport) handleTrackingInputUrlMenu(ctx context.Context, bot *telegra
       Text: `<b>Бот не смог получить данные 😟</b>
 
 Убедитесь, что страница точно указывает на карточку товара
-Если все верно, и ошибка повторяется снова, отправьте команду /alert`,
+Если все верно, и ошибка повторяется снова, обратитесь в поддержку 👨‍💻
+`,
       Menu: models.TrackingInputUrlMenu,
     })
 
@@ -315,17 +316,10 @@ func (b *Transport) handleTrackingInputUrlMenu(ctx context.Context, bot *telegra
 
 Если все хорошо, выберите необходимые размеры из списка
 
-Доступные размеры:
+Доступные размеры: %s
 `
-
-    for index, label := range sizesValues {
-      text += fmt.Sprintf("%d. %s", index+1, label)
-
-      if index != len(sizesValues)-1 {
-        text += "\n"
-      }
-    }
-    text = strings.TrimSpace(text)
+    sizesString := strings.Join(sizesValues, ", ")
+    text += strings.TrimSpace(sizesString)
 
     text += `
 
@@ -402,7 +396,7 @@ func (b *Transport) handleTrackingInputSizesMenu(ctx context.Context, bot *teleg
   reply := newReplyKeyboard(models.TrackingInputSizesMenu).
     Row().Button("Назад", bot, telegram.MatchTypeExact, b.handleStartSilentMenu)
 
-  sizesValues, errMessage := parseTrackingInputSizes(update.Message.Text, session)
+  sizesValues, errMessage := parseTrackingSizes(update.Message.Text, session)
 
   if errMessage != "" {
     err = b.sendMessage(ctx, sendMessageParams{
@@ -532,6 +526,135 @@ func (b *Transport) handleTrackingInputFlagMenu(ctx context.Context, bot *telegr
   }
 }
 
+func (b *Transport) handleTrackingCommentMenu(ctx context.Context, bot *telegram.Bot, update *tgmodels.Update) {
+  chatId, ok := findChatIdInUpdate(update)
+  if !ok {
+    log.
+      WithField("update.message", update.Message).
+      WithField("menu", models.TrackingCommentMenu).
+      Warn("chat_id not found")
+
+    return
+  }
+
+  session, err := b.findSession(ctx, chatId)
+  if err != nil {
+    log.
+      WithField("chat_id", chatId).
+      WithField("menu", models.TrackingCommentMenu).
+      Errorf("b.findSession: %v", err)
+
+    return
+  }
+
+  reply := newReplyKeyboard(models.TrackingCommentMenu).
+    Row().Button("Подтвердить 📨", bot, telegram.MatchTypeExact, b.handleTrackingInsertConfirmMenu).
+    Row().Button("Назад", bot, telegram.MatchTypeExact, b.handleStartSilentMenu)
+
+  err = b.sendMessage(ctx, sendMessageParams{
+    ChatId: chatId,
+    Text: `Пример ввода 💬
+
+Кепка Stussy черная 
+#stussy #кепка #kixbox
+
+Длина комментария может быть до 100 символов`,
+    Reply: reply,
+  })
+  if err != nil {
+    log.
+      WithField("chat_id", chatId).
+      WithField("menu", models.TrackingCommentMenu).
+      Errorf("b.sendMessage: %v", err)
+  }
+
+  err = b.upsertSession(ctx, upsertSessionParams{
+    ChatId:   chatId,
+    Menu:     models.TrackingCommentMenu,
+    Tracking: session.Tracking,
+  })
+  if err != nil {
+    log.
+      WithField("chat_id", chatId).
+      WithField("menu", models.TrackingCommentMenu).
+      Errorf("b.upsertSession: %v", err)
+
+    return
+  }
+}
+
+func (b *Transport) handleTrackingInputCommentMenu(ctx context.Context, bot *telegram.Bot, update *tgmodels.Update) {
+  chatId, ok := findChatIdInUpdate(update)
+  if !ok {
+    log.
+      WithField("update.message", update.Message).
+      WithField("menu", models.TrackingInputCommentMenu).
+      Warn("chat_id not found")
+
+    return
+  }
+
+  session, err := b.findSession(ctx, chatId)
+  if err != nil {
+    log.
+      WithField("chat_id", chatId).
+      WithField("menu", models.TrackingInputCommentMenu).
+      Errorf("b.findSession: %v", err)
+
+    return
+  }
+
+  reply := newReplyKeyboard(models.TrackingCommentMenu).
+    Row().Button("Подтвердить 📨", bot, telegram.MatchTypeExact, b.handleTrackingInsertConfirmMenu).
+    Row().Button("Назад", bot, telegram.MatchTypeExact, b.handleStartSilentMenu)
+
+  parsedComment, errMessage := parseTrackingComment(update.Message.Text)
+
+  if errMessage != "" {
+    err = b.sendMessage(ctx, sendMessageParams{
+      ChatId: chatId,
+      Text:   errMessage,
+      Reply:  reply,
+    })
+    if err != nil {
+      log.
+        WithField("chat_id", chatId).
+        WithField("menu", models.TrackingInputCommentMenu).
+        Errorf("b.sendMessage: %v", err)
+    }
+    return
+  }
+
+  session.Tracking.Comment = parsedComment
+
+  err = b.upsertSession(ctx, upsertSessionParams{
+    ChatId:   chatId,
+    Menu:     models.TrackingInputCommentMenu,
+    Tracking: session.Tracking,
+  })
+  if err != nil {
+    log.
+      WithField("chat_id", chatId).
+      WithField("menu", models.TrackingInputCommentMenu).
+      Errorf("b.upsertSession: %v", err)
+
+    return
+  }
+
+  err = b.sendMessage(ctx, sendMessageParams{
+    ChatId: chatId,
+    Text: `Комментарий успешно сохранен 😉
+Осталось подтвердить отслеживание 📨`,
+    Reply: reply,
+  })
+  if err != nil {
+    log.
+      WithField("chat_id", chatId).
+      WithField("menu", models.TrackingCommentMenu).
+      Errorf("b.sendMessage: %v", err)
+  }
+}
+
 func (b *Transport) handleTrackingFlagOnMenu(ctx context.Context, bot *telegram.Bot, update *tgmodels.Update) {
   chatId, ok := findChatIdInUpdate(update)
   if !ok {
@@ -571,12 +694,17 @@ func (b *Transport) handleTrackingFlagOnMenu(ctx context.Context, bot *telegram.
 
   reply := newReplyKeyboard(models.TrackingFlagConfirmMenu).
     Row().Button("Подтвердить 📨", bot, telegram.MatchTypeExact, b.handleTrackingInsertConfirmMenu).
+    Row().Button("Комментарий 💬", bot, telegram.MatchTypeExact, b.handleTrackingCommentMenu).
     Row().Button("Назад", bot, telegram.MatchTypeExact, b.handleStartSilentMenu)
 
   err = b.sendMessage(ctx, sendMessageParams{
     ChatId: chatId,
-    Text: `Опциональные уведомления включены
-Осталось подтвердить отслеживание 📨`,
+    Text: `Опциональные уведомления включены 
+
+Далее, вы можете оставить комментарий к вашему отслеживанию 💡
+Он будет отображаться при просмотре списка отслеживаний и получении уведомлений по товару 💬
+
+Если комментарий не требуется, просто подтвердите отслеживание 📨`,
     Reply: reply,
   })
   if err != nil {
@@ -624,12 +752,17 @@ func (b *Transport) handleTrackingFlagOffMenu(ctx context.Context, bot *telegram
 
   reply := newReplyKeyboard(models.TrackingFlagConfirmMenu).
     Row().Button("Подтвердить 📨", bot, telegram.MatchTypeExact, b.handleTrackingInsertConfirmMenu).
+    Row().Button("Комментарий 💬", bot, telegram.MatchTypeExact, b.handleTrackingCommentMenu).
     Row().Button("Назад", bot, telegram.MatchTypeExact, b.handleStartSilentMenu)
 
   err = b.sendMessage(ctx, sendMessageParams{
     ChatId: chatId,
-    Text: `Опциональные уведомления выключены 
-Осталось подтвердить отслеживание 📨`,
+    Text: `Опциональные уведомления отключены 
+
+Далее, вы можете оставить комментарий к вашему отслеживанию 💡
+Он будет отображаться при просмотре списка отслеживаний и получении уведомлений по товару 💬 
+
+Если комментарий не требуется, просто подтвердите отслеживание 📨`,
     Reply: reply,
   })
   if err != nil {
@@ -1011,35 +1144,6 @@ func (b *Transport) handleShopList(ctx context.Context, bot *telegram.Bot, updat
       WithField("chat_id", chatId).
       WithField("menu", models.ShopListMenu).
       Errorf("b.upsertSession: %v", err)
-
-    return
-  }
-}
-
-func (b *Transport) handleAlert(ctx context.Context, bot *telegram.Bot, update *tgmodels.Update) {
-  chatId, ok := findChatIdInUpdate(update)
-  if !ok {
-    log.
-      WithField("update.message", update.Message).
-      Warn("chat_id not found")
-
-    return
-  }
-
-  reply := newReplyKeyboard(models.ShopListMenu).
-    Row().Button("Назад", bot, telegram.MatchTypeExact, b.handleStartSilentMenu)
-
-  err := b.sendMessage(ctx, sendMessageParams{
-    ChatId: chatId,
-    Text: `Спасибо, что обратились с проблемой 
-Мы проанализируем возникшие ошибки и устраним их 🫡`,
-    Reply: reply,
-  })
-  if err != nil {
-    log.
-      WithField("chat_id", chatId).
-      WithField("menu", models.TrackingDeleteConfirmMenu).
-      Errorf("b.sendMessage: %v", err)
 
     return
   }

@@ -107,10 +107,10 @@ func sanitizeProductNodeContent(content string) (string, error) {
 
 func validateURL(url string) error {
   if err := validator.URL(url); err != nil {
-    return err
+    return fmt.Errorf("url invalid: %w", err)
   }
   if !regexURL.MatchString(url) {
-    return fmt.Errorf("expected: %s", baseURL)
+    return fmt.Errorf("url %s does not match regex %s", url, regexURL.String())
   }
   return nil
 }

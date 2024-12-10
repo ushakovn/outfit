@@ -11,27 +11,45 @@ import (
 )
 
 func (b *Transport) registerHandlers(ctx context.Context) {
-  b.registerStartHandler(ctx)
-  b.registerAlertHandler(ctx)
-  b.registerTrackingInputUrlMenuHandler(ctx)
-  b.registerTrackingInputSizesMenuHandler(ctx)
+  b.registerCommandHandler(ctx, registerCommandHandlerParams{
+    Command: "/start",
+    Handler: b.handleStartMenu,
+  })
+
+  b.registerTextHandler(ctx, registerTextHandlerParams{
+    Menu:    models.TrackingInsertMenu,
+    Handler: b.handleTrackingInputUrlMenu,
+  })
+
+  b.registerTextHandler(ctx, registerTextHandlerParams{
+    Menu:    models.TrackingInputUrlMenu,
+    Handler: b.handleTrackingInputSizesMenu,
+  })
+
+  b.registerTextHandler(ctx, registerTextHandlerParams{
+    Menu:    models.TrackingCommentMenu,
+    Handler: b.handleTrackingInputCommentMenu,
+  })
 }
 
-func (b *Transport) registerStartHandler(_ context.Context) {
+type registerCommandHandlerParams struct {
+  Command string
+  Handler func(ctx context.Context, bot *telegram.Bot, update *tgmodels.Update)
+}
+
+func (b *Transport) registerCommandHandler(_ context.Context, params registerCommandHandlerParams) {
   b.deps.Telegram.RegisterHandler(
-    telegram.HandlerTypeMessageText, "/start",
-    telegram.MatchTypeExact, b.handleStartMenu,
+    telegram.HandlerTypeMessageText, params.Command,
+    telegram.MatchTypeExact, params.Handler,
   )
 }
 
-func (b *Transport) registerAlertHandler(_ context.Context) {
-  b.deps.Telegram.RegisterHandler(
-    telegram.HandlerTypeMessageText, "/alert",
-    telegram.MatchTypeExact, b.handleAlert,
-  )
+type registerTextHandlerParams struct {
+  Menu    models.SessionMenu
+  Handler func(ctx context.Context, bot *telegram.Bot, update *tgmodels.Update)
 }
 
-func (b *Transport) registerTrackingInputUrlMenuHandler(ctx context.Context) {
+func (b *Transport) registerTextHandler(ctx context.Context, params registerTextHandlerParams) {
   b.deps.Telegram.RegisterHandlerMatchFunc(
     func(update *tgmodels.Update) bool {
       if isBackButtonMessage(update) || isNextButtonMessage(update) {
@@ -47,43 +65,15 @@ func (b *Transport) registerTrackingInputUrlMenuHandler(ctx context.Context) {
       if err != nil {
         log.
           WithField("chat_id", chatId).
-          WithField("previous_menu", models.TrackingInsertMenu).
+          WithField("menu", params.Menu).
           Errorf("b.findSession: %v", err)
 
         return false
       }
 
-      return session.Message.Menu == models.TrackingInsertMenu
+      return session.Message.Menu == params.Menu
     },
-    b.handleTrackingInputUrlMenu,
-  )
-}
-
-func (b *Transport) registerTrackingInputSizesMenuHandler(ctx context.Context) {
-  b.deps.Telegram.RegisterHandlerMatchFunc(
-    func(update *tgmodels.Update) bool {
-      if isBackButtonMessage(update) || isNextButtonMessage(update) {
-        return false
-      }
-
-      chatId, ok := findChatIdInUpdate(update)
-      if !ok {
-        return false
-      }
-
-      session, err := b.findSession(ctx, chatId)
-      if err != nil {
-        log.
-          WithField("chat_id", chatId).
-          WithField("previous_menu", models.TrackingInputUrlMenu).
-          Errorf("b.findSession: %v", err)
-
-        return false
-      }
-
-      return session.Message.Menu == models.TrackingInputUrlMenu
-    },
-    b.handleTrackingInputSizesMenu,
+    params.Handler,
   )
 }
 
