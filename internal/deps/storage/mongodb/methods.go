@@ -18,15 +18,40 @@ type CommonParams struct {
   StructType any
 }
 
+type SortParams struct {
+  Field string
+  Order SortOrder
+}
+
+type SortOrder int
+
+const (
+  SortOrderAsc  SortOrder = 1
+  SortOrderDesc SortOrder = -1
+)
+
 type ScanParams struct {
   CommonParams
 
-  Filters  map[string]any
+  Filters map[string]any
+  Sorting []SortParams
+
   Callback func(ctx context.Context, value any) error
 }
 
 func (p *ScanParams) toFilters() bson.D {
   return makeBsonDFilters(p.Filters)
+}
+
+func (p *ScanParams) toOptions() *options.FindOptions {
+  opts := options.Find()
+
+  if len(p.Sorting) != 0 {
+    sort := makeBsonBsonDSort(p.Sorting)
+    opts.SetSort(sort)
+  }
+
+  return opts
 }
 
 func (c *Client) Scan(ctx context.Context, params ScanParams) error {
@@ -41,11 +66,12 @@ func (c *Client) Scan(ctx context.Context, params ScanParams) error {
   counter := atomic.NewUint32(0)
 
   filters := params.toFilters()
+  opts := params.toOptions()
 
   cursor, err := c.client.
     Database(params.Database).
     Collection(params.Collection).
-    Find(ctx, filters)
+    Find(ctx, filters, opts)
 
   if err != nil {
     return fmt.Errorf("mongodb.Database.Collection.Find: %w", err)
@@ -233,7 +259,9 @@ type FindParams struct {
   CommonParams
 
   Filters map[string]any
-  Limit   int64
+  Sorting []SortParams
+
+  Limit int64
 }
 
 func (p *FindParams) toFilters() bson.D {
@@ -246,6 +274,12 @@ func (p *FindParams) toOptions() *options.FindOptions {
   if p.Limit != 0 {
     opts.SetLimit(p.Limit)
   }
+
+  if len(p.Sorting) != 0 {
+    sort := makeBsonBsonDSort(p.Sorting)
+    opts.SetSort(sort)
+  }
+
   return opts
 }
 

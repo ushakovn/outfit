@@ -27,6 +27,12 @@ func (c *Tracker) Start(ctx context.Context) error {
       Collection: "trackings",
       StructType: models.Tracking{},
     },
+    Sorting: []mongodb.SortParams{
+      {
+        Field: "handled_at",
+        Order: mongodb.SortOrderAsc,
+      },
+    },
     Filters: c.makeTrackingFilters(),
 
     Callback: func(ctx context.Context, value any) error {

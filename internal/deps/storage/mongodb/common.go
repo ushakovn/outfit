@@ -6,6 +6,19 @@ import (
   "go.mongodb.org/mongo-driver/bson"
 )
 
+func makeBsonBsonDSort(params []SortParams) bson.D {
+  bsonD := bson.D{}
+
+  for _, sort := range params {
+    bsonD = append(bsonD, bson.E{
+      Key:   sort.Field,
+      Value: int(sort.Order),
+    })
+  }
+
+  return bsonD
+}
+
 func makeBsonDUpdates(document any) bson.D {
   updates := bson.D{}
 
