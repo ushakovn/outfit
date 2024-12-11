@@ -190,7 +190,7 @@ func RenderContent(node *html.Node, shift ShiftNodePos) (string, error) {
   content := b.String()
   separator := ". "
 
-  content = stringer.TrimRepeatSeparators(stringer.StripTags(content), separator)
+  content = stringer.ReplaceRepeatSeparators(stringer.StripTags(content), separator)
   content = html.UnescapeString(content)
 
   return content, nil

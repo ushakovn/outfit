@@ -12,6 +12,7 @@ import (
   "github.com/ushakovn/outfit/internal/deps/parsers/lamoda"
   "github.com/ushakovn/outfit/internal/deps/parsers/lime"
   "github.com/ushakovn/outfit/internal/deps/parsers/oktyabr"
+  "github.com/ushakovn/outfit/internal/deps/parsers/ridestep"
   "github.com/ushakovn/outfit/internal/deps/storage/mongodb"
   "github.com/ushakovn/outfit/internal/models"
   "github.com/ushakovn/outfit/pkg/logger"
@@ -55,14 +56,16 @@ func main() {
   kixboxParser := kixbox.NewParser(kixbox.Dependencies{Xpath: xpathParser})
   oktyabrParser := oktyabr.NewParser(oktyabr.Dependencies{Xpath: xpathParser})
   limeParser := lime.NewParser(lime.Dependencies{Client: httpClient})
+  ridestepParser := ridestep.NewParser(ridestep.Dependencies{Xpath: xpathParser})
 
   trackerCron := tracker.NewTrackerCron(productType, tracker.Dependencies{
     Mongodb: mongoClient,
     Parsers: map[models.ProductType]models.Parser{
-      models.ProductTypeLamoda:  lamodaParser,
-      models.ProductTypeKixbox:  kixboxParser,
-      models.ProductTypeOktyabr: oktyabrParser,
-      models.ProductTypeLime:    limeParser,
+      models.ProductTypeLamoda:   lamodaParser,
+      models.ProductTypeKixbox:   kixboxParser,
+      models.ProductTypeOktyabr:  oktyabrParser,
+      models.ProductTypeLime:     limeParser,
+      models.ProductTypeRidestep: ridestepParser,
     },
   })
 

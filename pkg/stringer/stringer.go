@@ -39,7 +39,7 @@ func IsEmptyStr(s string) bool {
   return Strip(s) == ""
 }
 
-func TrimRepeatSeparators(s string, repl string) string {
+func ReplaceRepeatSeparators(s string, repl string) string {
   return RegexRepeatSep.ReplaceAllString(Strip(s), repl)
 }
 
