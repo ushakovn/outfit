@@ -13,6 +13,7 @@ import (
   "github.com/ushakovn/outfit/internal/deps/parsers/lime"
   "github.com/ushakovn/outfit/internal/deps/parsers/oktyabr"
   "github.com/ushakovn/outfit/internal/deps/parsers/ridestep"
+  "github.com/ushakovn/outfit/internal/deps/parsers/traektoria"
   "github.com/ushakovn/outfit/internal/deps/storage/mongodb"
   "github.com/ushakovn/outfit/internal/models"
   "github.com/ushakovn/outfit/pkg/logger"
@@ -57,15 +58,17 @@ func main() {
   oktyabrParser := oktyabr.NewParser(oktyabr.Dependencies{Xpath: xpathParser})
   limeParser := lime.NewParser(lime.Dependencies{Client: httpClient})
   ridestepParser := ridestep.NewParser(ridestep.Dependencies{Xpath: xpathParser})
+  traektoriaParser := traektoria.NewParser(traektoria.Dependencies{Client: httpClient})
 
   trackerCron := tracker.NewTrackerCron(productType, tracker.Dependencies{
     Mongodb: mongoClient,
     Parsers: map[models.ProductType]models.Parser{
-      models.ProductTypeLamoda:   lamodaParser,
-      models.ProductTypeKixbox:   kixboxParser,
-      models.ProductTypeOktyabr:  oktyabrParser,
-      models.ProductTypeLime:     limeParser,
-      models.ProductTypeRidestep: ridestepParser,
+      models.ProductTypeLamoda:     lamodaParser,
+      models.ProductTypeKixbox:     kixboxParser,
+      models.ProductTypeOktyabr:    oktyabrParser,
+      models.ProductTypeLime:       limeParser,
+      models.ProductTypeRidestep:   ridestepParser,
+      models.ProductTypeTraektoria: traektoriaParser,
     },
   })
 

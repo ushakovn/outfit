@@ -6,17 +6,21 @@ const (
   StartMenu       SessionMenu = "start_menu"
   StartSilentMenu SessionMenu = "start_silent_menu"
 
-  TrackingListMenu          SessionMenu = "tracking_list_menu"
-  TrackingInsertMenu        SessionMenu = "tracking_insert_menu"
-  TrackingInsertConfirmMenu SessionMenu = "tracking_insert_confirm_menu"
-  TrackingInputUrlMenu      SessionMenu = "tracking_input_url_menu"
-  TrackingInputSizesMenu    SessionMenu = "tracking_input_sizes_menu"
-  TrackingInputFlagMenu     SessionMenu = "tracking_input_flag_menu"
-  TrackingCommentMenu       SessionMenu = "tracking_comment_menu"
-  TrackingInputCommentMenu  SessionMenu = "tracking_input_comment_menu"
-  TrackingFlagConfirmMenu   SessionMenu = "tracking_flag_confirm_menu"
-  TrackingDeleteMenu        SessionMenu = "tracking_delete_menu"
-  TrackingDeleteConfirmMenu SessionMenu = "tracking_delete_confirm_menu"
+  TrackingMyMenu                SessionMenu = "tracking_my_menu"
+  TrackingListMenu              SessionMenu = "tracking_list_menu"
+  TrackingSearchInputMenu       SessionMenu = "tracking_search_input_menu"
+  TrackingSearchSilentInputMenu SessionMenu = "tracking_search_silent_input_menu"
+  TrackingSearchShowMenu        SessionMenu = "tracking_search_show_menu"
+  TrackingInsertMenu            SessionMenu = "tracking_insert_menu"
+  TrackingInsertConfirmMenu     SessionMenu = "tracking_insert_confirm_menu"
+  TrackingInputUrlMenu          SessionMenu = "tracking_input_url_menu"
+  TrackingInputSizesMenu        SessionMenu = "tracking_input_sizes_menu"
+  TrackingInputFlagMenu         SessionMenu = "tracking_input_flag_menu"
+  TrackingCommentMenu           SessionMenu = "tracking_comment_menu"
+  TrackingInputCommentMenu      SessionMenu = "tracking_input_comment_menu"
+  TrackingFlagConfirmMenu       SessionMenu = "tracking_flag_confirm_menu"
+  TrackingDeleteMenu            SessionMenu = "tracking_delete_menu"
+  TrackingDeleteConfirmMenu     SessionMenu = "tracking_delete_confirm_menu"
 
   IssueInsertMenu        SessionMenu = "issue_insert_menu"
   IssueInputTypeMenu     SessionMenu = "issue_input_type_menu"
@@ -29,9 +33,13 @@ const (
 type SessionMenu = string
 
 type Session struct {
-  ChatId    int64            `bson:"chat_id" json:"chat_id"`
-  Message   SessionMessage   `bson:"message" json:"message"`
-  Tracking  *Tracking        `bson:"tracking" json:"tracking"`
+  ChatId int64 `bson:"chat_id" json:"chat_id"`
+
+  // TODO: move to Session.Entities.
+  Message SessionMessage `bson:"message" json:"message"`
+  // TODO: move to Session.Entities.
+  Tracking *Tracking `bson:"tracking" json:"tracking"`
+
   Entities  *SessionEntities `bson:"entities" json:"entities"`
   UpdatedAt time.Time        `bson:"updated_at" json:"updated_at"`
 }

@@ -1,6 +1,6 @@
 module github.com/ushakovn/outfit
 
-go 1.20
+go 1.21
 
 require (
 	github.com/antchfx/htmlquery v1.3.3

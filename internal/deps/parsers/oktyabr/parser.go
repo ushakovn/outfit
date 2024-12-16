@@ -21,7 +21,7 @@ import (
 
 const (
   schemaContext        = "schema.org"
-  schemaTypeProduct    = "Product"
+  schemaTypeProduct    = "Page"
   schemaTypeBreadcrumb = "BreadcrumbList"
 )
 
@@ -272,7 +272,7 @@ func findBreadcrumbsJSON(doc *xpath.HtmlDocument) (*ParsedBreadcrumbs, error) {
 }
 
 func findBrandInHeading(doc *xpath.HtmlDocument) (string, error) {
-  const path = `//div[contains(@itemtype, 'schema.org/Product')]//span[contains(@class, 'block')]`
+  const path = `//div[contains(@itemtype, 'schema.org/Page')]//span[contains(@class, 'block')]`
 
   brand, exist := xpath.FindElement(doc, path, func(node *html.Node) bool {
     _, ok := xpath.GetContent(node, xpath.ShiftToLastChild)

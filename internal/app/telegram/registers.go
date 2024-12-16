@@ -17,22 +17,33 @@ func (b *Transport) registerHandlers(ctx context.Context) {
   })
 
   b.registerTextHandler(ctx, registerTextHandlerParams{
-    Menu:    models.TrackingInsertMenu,
+    Menus:   []models.SessionMenu{models.TrackingInsertMenu},
     Handler: b.handleTrackingInputUrlMenu,
   })
 
   b.registerTextHandler(ctx, registerTextHandlerParams{
-    Menu:    models.TrackingInputUrlMenu,
+    Menus: []models.SessionMenu{
+      models.TrackingInputUrlMenu,
+      models.TrackingInputSizesMenu,
+    },
     Handler: b.handleTrackingInputSizesMenu,
   })
 
   b.registerTextHandler(ctx, registerTextHandlerParams{
-    Menu:    models.TrackingCommentMenu,
+    Menus: []models.SessionMenu{
+      models.TrackingSearchInputMenu,
+      models.TrackingSearchSilentInputMenu,
+    },
+    Handler: b.handleTrackingSearchShowMenu,
+  })
+
+  b.registerTextHandler(ctx, registerTextHandlerParams{
+    Menus:   []models.SessionMenu{models.TrackingCommentMenu},
     Handler: b.handleTrackingInputCommentMenu,
   })
 
   b.registerTextHandler(ctx, registerTextHandlerParams{
-    Menu:    models.IssueInputTypeMenu,
+    Menus:   []models.SessionMenu{models.IssueInputTypeMenu},
     Handler: b.handleIssueInputTextMenu,
   })
 }
@@ -50,14 +61,14 @@ func (b *Transport) registerCommandHandler(_ context.Context, params registerCom
 }
 
 type registerTextHandlerParams struct {
-  Menu    models.SessionMenu
+  Menus   []models.SessionMenu
   Handler func(ctx context.Context, bot *telegram.Bot, update *tgmodels.Update)
 }
 
 func (b *Transport) registerTextHandler(ctx context.Context, params registerTextHandlerParams) {
   b.deps.Telegram.RegisterHandlerMatchFunc(
     func(update *tgmodels.Update) bool {
-      if isBackButtonMessage(update) || isNextButtonMessage(update) {
+      if isControlButtonText(update) {
         return false
       }
 
@@ -70,29 +81,41 @@ func (b *Transport) registerTextHandler(ctx context.Context, params registerText
       if err != nil {
         log.
           WithField("chat_id", chatId).
-          WithField("menu", params.Menu).
+          WithField("menus", params.Menus).
           Errorf("b.findSession: %v", err)
 
         return false
       }
 
-      return session.Message.Menu == params.Menu
+      for _, menu := range params.Menus {
+        if session.Message.Menu == menu {
+          return true
+        }
+      }
+
+      return false
     },
     params.Handler,
   )
 }
 
-func hasButtonText(update *tgmodels.Update, text string) bool {
+func containsButtonText(update *tgmodels.Update, parts []string) bool {
   if update == nil || update.Message == nil {
     return false
   }
-  return strings.Contains(update.Message.Text, text)
+
+  for _, text := range parts {
+    if strings.Contains(update.Message.Text, text) {
+      return true
+    }
+  }
+
+  return false
 }
 
-func isBackButtonMessage(update *tgmodels.Update) bool {
-  return hasButtonText(update, "Назад")
-}
-
-func isNextButtonMessage(update *tgmodels.Update) bool {
-  return hasButtonText(update, "Далее")
+func isControlButtonText(update *tgmodels.Update) bool {
+  return containsButtonText(update, []string{
+    "Назад", "Далее", "Включить",
+    "Помощь", "Подтвердить", "Пропустить",
+  })
 }

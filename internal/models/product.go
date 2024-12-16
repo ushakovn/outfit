@@ -12,12 +12,13 @@ import (
 )
 
 const (
-  ProductTypeUnknown  ProductType = "unknown"
-  ProductTypeLamoda   ProductType = "lamoda"
-  ProductTypeKixbox   ProductType = "kixbox"
-  ProductTypeOktyabr  ProductType = "oktyabr"
-  ProductTypeLime     ProductType = "lime"
-  ProductTypeRidestep ProductType = "ridestep"
+  ProductTypeUnknown    ProductType = "unknown"
+  ProductTypeLamoda     ProductType = "lamoda"
+  ProductTypeKixbox     ProductType = "kixbox"
+  ProductTypeOktyabr    ProductType = "oktyabr"
+  ProductTypeLime       ProductType = "lime"
+  ProductTypeRidestep   ProductType = "ridestep"
+  ProductTypeTraektoria ProductType = "traektoria"
 )
 
 type ProductType = string
@@ -161,6 +162,8 @@ func FindProductType(url string) ProductType {
     return ProductTypeLime
   case strings.Contains(parsed.Host, "ridestep"):
     return ProductTypeRidestep
+  case strings.Contains(parsed.Host, "traektoria"):
+    return ProductTypeTraektoria
   }
 
   return ProductTypeUnknown

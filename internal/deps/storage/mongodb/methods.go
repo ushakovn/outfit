@@ -8,6 +8,7 @@ import (
 
   log "github.com/sirupsen/logrus"
   "go.mongodb.org/mongo-driver/bson"
+  "go.mongodb.org/mongo-driver/mongo"
   "go.mongodb.org/mongo-driver/mongo/options"
   "go.uber.org/atomic"
 )
@@ -374,4 +375,117 @@ func (c *Client) Delete(ctx context.Context, params DeleteParams) (count int64, 
     Debug("documents deleted from mongodb collection successfully")
 
   return res.DeletedCount, nil
+}
+
+type TextSearchParams struct {
+  CommonParams
+
+  Query string
+  Limit int64
+}
+
+func (c *Client) TextSearch(ctx context.Context, params TextSearchParams) ([]any, error) {
+  filters := map[string]any{
+    "$text": bson.D{
+      {
+        Key:   "$search",
+        Value: params.Query,
+      },
+    },
+  }
+
+  //filters := bson.D{{"$text", bson.D{{"$search", params.Query}}}}
+
+  //filters := bson.D{{"$text", bson.D{{"$search", params.Query}}}}
+
+  //cursor, err := c.client.
+  //  Database(params.Database).
+  //  Collection(params.Collection).
+  //  Find(ctx, filters)
+  //
+  //if err != nil {
+  //  return nil, fmt.Errorf("mongodb.Database.Collection.Find: %w", err)
+  //}
+  //
+  //defer func() {
+  //  if err = cursor.Close(ctx); err != nil {
+  //    log.Error("mongodb.Client: cursor.Close: %v", err)
+  //  }
+  //}()
+  //
+  //for cursor.Next(ctx) {
+  //  doc := any(make(map[string]any))
+  //
+  //  if params.StructType != nil {
+  //    typ := reflect.TypeOf(params.StructType)
+  //    doc = reflect.New(typ).Interface()
+  //  }
+  //
+  //  if err = cursor.Decode(doc); err != nil {
+  //    return nil, fmt.Errorf("cursor.Decode: %T: %w", doc, err)
+  //  }
+  //}
+  //
+  //return nil, nil
+
+  res, err := c.Find(ctx, FindParams{
+    CommonParams: params.CommonParams,
+    Filters:      filters,
+    Limit:        params.Limit,
+  })
+  if err != nil {
+    return nil, fmt.Errorf("c.Find: %w", err)
+  }
+
+  return res, nil
+}
+
+type CreateIndexParams struct {
+  CommonParams
+
+  Parts   []IndexPart
+  Options *options.IndexOptions
+}
+
+type IndexPart struct {
+  Field string
+  Type  any
+}
+
+const (
+  IndexTypeAsc  = 1
+  IndexTypeDesc = -1
+  IndexTypeText = "text"
+)
+
+func (p *CreateIndexParams) toIndexModel() mongo.IndexModel {
+  keys := make(bson.D, 0, len(p.Parts))
+
+  for _, part := range p.Parts {
+    keys = append(keys, bson.E{
+      Key:   part.Field,
+      Value: part.Type,
+    })
+  }
+
+  return mongo.IndexModel{
+    Keys:    keys,
+    Options: p.Options,
+  }
+}
+
+func (c *Client) CreateIndex(ctx context.Context, params CreateIndexParams) (name string, err error) {
+  model := params.toIndexModel()
+
+  name, err = c.client.
+    Database(params.Database).
+    Collection(params.Collection).
+    Indexes().
+    CreateOne(ctx, model)
+
+  if err != nil {
+    return "", fmt.Errorf("c.client.Database.Collection.Indexes.CreateOne: %w", err)
+  }
+
+  return name, nil
 }

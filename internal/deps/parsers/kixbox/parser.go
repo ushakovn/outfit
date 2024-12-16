@@ -21,7 +21,7 @@ import (
 
 const (
   schemaContext        = "schema.org"
-  schemaTypeProduct    = "Product"
+  schemaTypeProduct    = "Page"
   schemaTypeBreadcrumb = "BreadcrumbList"
 )
 

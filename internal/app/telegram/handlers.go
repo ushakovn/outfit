@@ -3,13 +3,11 @@ package telegram
 import (
   "context"
   "errors"
-  "fmt"
   "strings"
   "time"
 
   telegram "github.com/go-telegram/bot"
   tgmodels "github.com/go-telegram/bot/models"
-  "github.com/samber/lo"
   log "github.com/sirupsen/logrus"
   "github.com/ushakovn/outfit/internal/app/tracker"
   "github.com/ushakovn/outfit/internal/models"
@@ -27,7 +25,7 @@ func (b *Transport) handleStartMenu(ctx context.Context, bot *telegram.Bot, upda
   }
 
   reply := newReplyKeyboard(models.StartMenu).
-    Row().Button("Мои отслеживания ✉️", bot, telegram.MatchTypeExact, b.handleTrackingListMenu).
+    Row().Button("Мои отслеживания ✉️", bot, telegram.MatchTypeExact, b.handleTrackingMyMenu).
     Row().Button("Добавить отслеживание 📨", bot, telegram.MatchTypeExact, b.handleTrackingInsertMenu).
     Row().Button("Поддерживаемые магазины 👜", bot, telegram.MatchTypeExact, b.handleShopList).
     Row().Button("Обратная связь 📧", bot, telegram.MatchTypeExact, b.handleInsertIssueMenu)
@@ -85,7 +83,7 @@ func (b *Transport) handleStartSilentMenu(ctx context.Context, bot *telegram.Bot
 
   reply := newReplyKeyboard(models.StartSilentMenu).
     Row().Button("Помощь 💡", bot, telegram.MatchTypeExact, b.handleStartMenu).
-    Row().Button("Мои отслеживания ✉️", bot, telegram.MatchTypeExact, b.handleTrackingListMenu).
+    Row().Button("Мои отслеживания ✉️", bot, telegram.MatchTypeExact, b.handleTrackingMyMenu).
     Row().Button("Добавить отслеживание 📨", bot, telegram.MatchTypeExact, b.handleTrackingInsertMenu)
 
   err := b.sendMessage(ctx, sendMessageParams{
@@ -287,10 +285,8 @@ func (b *Transport) handleTrackingInputUrlMenu(ctx context.Context, bot *telegra
     return
   }
 
-  sizesValues := lo.Map(message.Product.Options, func(option models.ProductOption, _ int) string {
-    return option.Size.Base.Value
-  })
-  sizesCount := len(message.Product.Options)
+  sizesValues := makeProductSizes(message.Product)
+  sizesCount := len(sizesValues)
 
   // Если товар имеет one size размер.
   if sizesCount <= 1 {
@@ -315,9 +311,9 @@ func (b *Transport) handleTrackingInputUrlMenu(ctx context.Context, bot *telegra
   } else {
     text := `<b>Проверьте полученные от бота данные</b>
 
-Если все хорошо, выберите необходимые размеры из списка
+Если все хорошо, выберите необходимые размеры из списка 📋
 
-Доступные размеры: 
+<b>Доступные размеры 📋:</b> 
 `
     sizesString := strings.Join(sizesValues, ", ")
     text += strings.TrimSpace(sizesString)
@@ -328,7 +324,7 @@ func (b *Transport) handleTrackingInputUrlMenu(ctx context.Context, bot *telegra
 
 Кстати, вы можете ввести размер, которого нет в списке, если точно знаете, что такой существует и может появиться в наличии на сайте 😉
 
-Пример корректного ввода 💬
+<b>Пример корректного ввода 💬</b>
 `
 
     text += makeCutSizeValuesString(sizesValues)
@@ -414,37 +410,13 @@ func (b *Transport) handleTrackingInputSizesMenu(ctx context.Context, bot *teleg
     return
   }
 
-  setTrackingSizes(session.Tracking, sizesValues)
-
-  err = b.upsertSession(ctx, upsertSessionParams{
-    ChatId:   chatId,
-    Menu:     models.TrackingInputSizesMenu,
-    Tracking: session.Tracking,
-  })
-  if err != nil {
-    log.
-      WithField("chat_id", chatId).
-      WithField("menu", models.TrackingInputSizesMenu).
-      Errorf("b.upsertSession: %v", err)
-
-    return
-  }
-
   reply = newReplyKeyboard(models.TrackingInputSizesMenu).
     Row().Button("Далее", bot, telegram.MatchTypeExact, b.handleTrackingInputFlagMenu).
     Row().Button("Назад", bot, telegram.MatchTypeExact, b.handleStartSilentMenu)
 
-  sizesString := strings.Join(sizesValues, ", ")
-  sizesString = strings.TrimSpace(sizesString)
-
-  text := fmt.Sprintf(`Введенные вами размеры: %s
-`, sizesString)
-
-  text += `Если все верно, нажмите далее 😉`
-
   err = b.sendMessage(ctx, sendMessageParams{
     ChatId: chatId,
-    Text:   text,
+    Text:   makeTrackingSizesText(sizesValues, session),
     Reply:  reply,
   })
   if err != nil {
@@ -452,6 +424,22 @@ func (b *Transport) handleTrackingInputSizesMenu(ctx context.Context, bot *teleg
       WithField("chat_id", chatId).
       WithField("menu", models.TrackingInputSizesMenu).
       Errorf("b.sendMessage: %v", err)
+
+    return
+  }
+
+  setTrackingSizes(session.Tracking, sizesValues)
+
+  err = b.upsertSession(ctx, upsertSessionParams{
+    ChatId:   chatId,
+    Menu:     models.TrackingInputUrlMenu,
+    Tracking: session.Tracking,
+  })
+  if err != nil {
+    log.
+      WithField("chat_id", chatId).
+      WithField("menu", models.TrackingInputSizesMenu).
+      Errorf("b.upsertSession: %v", err)
 
     return
   }
@@ -810,7 +798,7 @@ func (b *Transport) handleTrackingInsertConfirmMenu(ctx context.Context, bot *te
 
   reply := newReplyKeyboard(models.TrackingInsertConfirmMenu).
     Row().Button("Помощь 💡", bot, telegram.MatchTypeExact, b.handleStartMenu).
-    Row().Button("Мои отслеживания ✉️", bot, telegram.MatchTypeExact, b.handleTrackingListMenu).
+    Row().Button("Мои отслеживания ✉️", bot, telegram.MatchTypeExact, b.handleTrackingMyMenu).
     Row().Button("Добавить отслеживание 📨", bot, telegram.MatchTypeExact, b.handleTrackingInsertMenu)
 
   err = b.sendMessage(ctx, sendMessageParams{
@@ -842,6 +830,225 @@ func (b *Transport) handleTrackingInsertConfirmMenu(ctx context.Context, bot *te
   }
 }
 
+func (b *Transport) handleTrackingSearchSilentInputMenu(ctx context.Context, bot *telegram.Bot, update *tgmodels.Update) {
+  chatId, ok := findChatIdInUpdate(update)
+  if !ok {
+    log.
+      WithField("update.message", update.Message).
+      WithField("menu", models.TrackingSearchSilentInputMenu).
+      Warn("chat_id not found")
+
+    return
+  }
+
+  err := b.sendMessage(ctx, sendMessageParams{
+    ChatId: chatId,
+    Text:   `Введите ключевые слова для поиска 💬`,
+  })
+  if err != nil {
+    log.
+      WithField("chat_id", chatId).
+      WithField("menu", models.TrackingSearchSilentInputMenu).
+      Errorf("b.sendMessage: %v", err)
+
+    return
+  }
+
+  err = b.upsertSession(ctx, upsertSessionParams{
+    ChatId: chatId,
+    Menu:   models.TrackingSearchSilentInputMenu,
+  })
+  if err != nil {
+    log.
+      WithField("chat_id", chatId).
+      WithField("menu", models.TrackingSearchSilentInputMenu).
+      Errorf("b.upsertSession: %v", err)
+
+    return
+  }
+}
+
+func (b *Transport) handleTrackingSearchInputMenu(ctx context.Context, bot *telegram.Bot, update *tgmodels.Update) {
+  chatId, ok := findChatIdInUpdate(update)
+  if !ok {
+    log.
+      WithField("update.message", update.Message).
+      WithField("menu", models.TrackingSearchInputMenu).
+      Warn("chat_id not found")
+
+    return
+  }
+
+  err := b.sendMessage(ctx, sendMessageParams{
+    ChatId: chatId,
+    Text: `Введите ключевые слова для поиска 💬
+Они могут содержаться в названии или описании товара, ссылке или комментарии к отслеживанию 💡`,
+  })
+  if err != nil {
+    log.
+      WithField("chat_id", chatId).
+      WithField("menu", models.TrackingSearchInputMenu).
+      Errorf("b.sendMessage: %v", err)
+
+    return
+  }
+
+  err = b.upsertSession(ctx, upsertSessionParams{
+    ChatId: chatId,
+    Menu:   models.TrackingSearchInputMenu,
+  })
+  if err != nil {
+    log.
+      WithField("chat_id", chatId).
+      WithField("menu", models.TrackingSearchInputMenu).
+      Errorf("b.upsertSession: %v", err)
+
+    return
+  }
+}
+
+func (b *Transport) handleTrackingSearchShowMenu(ctx context.Context, bot *telegram.Bot, update *tgmodels.Update) {
+  chatId, ok := findChatIdInUpdate(update)
+  if !ok {
+    log.
+      WithField("update.message", update.Message).
+      WithField("menu", models.TrackingSearchShowMenu).
+      Warn("chat_id not found")
+
+    return
+  }
+
+  reply := newReplyKeyboard(models.TrackingSearchShowMenu).
+    Row().Button("Назад", bot, telegram.MatchTypeExact, b.handleStartSilentMenu)
+
+  query := parseSearchQuery(update.Message.Text)
+
+  list, err := b.searchTracking(ctx, query)
+
+  if err != nil || len(list) == 0 {
+
+    err = b.sendMessage(ctx, sendMessageParams{
+      ChatId: chatId,
+      Text: `Похожих отслеживаний не найдено 👀
+Попробуйте поискать еще раз 😉`,
+      Reply: reply,
+    })
+    if err != nil {
+      log.
+        WithField("chat_id", chatId).
+        WithField("menu", models.TrackingSearchShowMenu).
+        Errorf("b.sendMessage: %v", err)
+
+      return
+    }
+
+    if err != nil {
+      log.
+        WithField("chat_id", chatId).
+        WithField("menu", models.TrackingSearchShowMenu).
+        Errorf("b.searchTracking: %v", err)
+    }
+
+    return
+  }
+
+  b.fillTrackingsCache(chatId, list)
+
+  slider := b.newTrackingSlider(trackingSliderParams{
+    ChatId:    chatId,
+    Bot:       bot,
+    Trackings: list,
+  })
+
+  if _, err = slider.Show(ctx, bot, chatId); err != nil {
+    log.
+      WithField("chat_id", chatId).
+      WithField("menu", models.TrackingSearchShowMenu).
+      Errorf("telegram.Slider.Show: %v", err)
+
+    return
+  }
+
+  err = b.upsertSession(ctx, upsertSessionParams{
+    ChatId: chatId,
+    Menu:   models.TrackingSearchShowMenu,
+  })
+  if err != nil {
+    log.
+      WithField("chat_id", chatId).
+      WithField("menu", models.TrackingSearchShowMenu).
+      Errorf("b.upsertSession: %v", err)
+
+    return
+  }
+
+  const messageDelay = time.Second
+  time.Sleep(messageDelay)
+
+  reply = newReplyKeyboard(models.TrackingSearchShowMenu).
+    Row().Button("К поиску", bot, telegram.MatchTypeExact, b.handleTrackingSearchSilentInputMenu).
+    Row().Button("Назад в меню", bot, telegram.MatchTypeExact, b.handleStartSilentMenu)
+
+  err = b.sendMessage(ctx, sendMessageParams{
+    ChatId: chatId,
+    Text:   `Поискать другие отслеживания?`,
+    Reply:  reply,
+  })
+  if err != nil {
+    log.
+      WithField("chat_id", chatId).
+      WithField("menu", models.TrackingSearchShowMenu).
+      Errorf("b.sendMessage: %v", err)
+
+    return
+  }
+}
+
+func (b *Transport) handleTrackingMyMenu(ctx context.Context, bot *telegram.Bot, update *tgmodels.Update) {
+  chatId, ok := findChatIdInUpdate(update)
+  if !ok {
+    log.
+      WithField("update.message", update.Message).
+      WithField("menu", models.TrackingMyMenu).
+      Warn("chat_id not found")
+
+    return
+  }
+
+  reply := newReplyKeyboard(models.TrackingMyMenu).
+    Row().Button("Список 📋", bot, telegram.MatchTypeExact, b.handleTrackingListMenu).
+    Row().Button("Поиск 🔎", bot, telegram.MatchTypeExact, b.handleTrackingSearchInputMenu).
+    Row().Button("Назад", bot, telegram.MatchTypeExact, b.handleStartSilentMenu)
+
+  err := b.sendMessage(ctx, sendMessageParams{
+    ChatId: chatId,
+    Text: `Для просмотра всех отслеживаний, выберите "Список 📋"
+Для поиска определенного отслеживания, выберите "Поиск 🔎"`,
+    Reply: reply,
+  })
+  if err != nil {
+    log.
+      WithField("chat_id", chatId).
+      WithField("menu", models.TrackingMyMenu).
+      Errorf("b.sendMessage: %v", err)
+
+    return
+  }
+
+  err = b.upsertSession(ctx, upsertSessionParams{
+    ChatId: chatId,
+    Menu:   models.TrackingMyMenu,
+  })
+  if err != nil {
+    log.
+      WithField("chat_id", chatId).
+      WithField("menu", models.TrackingMyMenu).
+      Errorf("b.upsertSession: %v", err)
+
+    return
+  }
+}
+
 func (b *Transport) handleTrackingListMenu(ctx context.Context, bot *telegram.Bot, update *tgmodels.Update) {
   chatId, ok := findChatIdInUpdate(update)
   if !ok {
@@ -863,13 +1070,7 @@ func (b *Transport) handleTrackingListMenu(ctx context.Context, bot *telegram.Bo
     return
   }
 
-  for index, tracking := range list {
-    key := chatSelectedTracking{
-      ChatId: chatId,
-      Index:  index,
-    }
-    b.deps.cache.TrackingURLs[key] = tracking.URL
-  }
+  b.fillTrackingsCache(chatId, list)
 
   if len(list) > 0 {
     slider := b.newTrackingSlider(trackingSliderParams{
@@ -889,7 +1090,7 @@ func (b *Transport) handleTrackingListMenu(ctx context.Context, bot *telegram.Bo
   } else {
     reply := newReplyKeyboard(models.TrackingListMenu).
       Row().Button("Помощь 💡", bot, telegram.MatchTypeExact, b.handleStartMenu).
-      Row().Button("Мои отслеживания ✉️", bot, telegram.MatchTypeExact, b.handleTrackingListMenu).
+      Row().Button("Мои отслеживания ✉️", bot, telegram.MatchTypeExact, b.handleTrackingMyMenu).
       Row().Button("Добавить отслеживание 📨", bot, telegram.MatchTypeExact, b.handleTrackingInsertMenu)
 
     err = b.sendMessage(ctx, sendMessageParams{
@@ -932,10 +1133,7 @@ func (b *Transport) handleTrackingDeleteMenu(ctx context.Context, bot *telegram.
     return
   }
 
-  url, ok := b.deps.cache.TrackingURLs[chatSelectedTracking{
-    ChatId: chatId,
-    Index:  index,
-  }]
+  url, ok := b.findTrackingInCache(chatId, index)
   if !ok {
     log.
       WithField("chat_id", chatId).
@@ -1002,7 +1200,7 @@ func (b *Transport) handleTrackingSilentMenu(ctx context.Context, bot *telegram.
 
   reply := newReplyKeyboard(models.StartSilentMenu).
     Row().Button("Помощь 💡", bot, telegram.MatchTypeExact, b.handleStartMenu).
-    Row().Button("Мои отслеживания ✉️", bot, telegram.MatchTypeExact, b.handleTrackingListMenu).
+    Row().Button("Мои отслеживания ✉️", bot, telegram.MatchTypeExact, b.handleTrackingMyMenu).
     Row().Button("Добавить отслеживание 📨", bot, telegram.MatchTypeExact, b.handleTrackingInsertMenu)
 
   err := b.sendMessage(ctx, sendMessageParams{
@@ -1066,7 +1264,7 @@ func (b *Transport) handleTrackingDeleteConfirmMenu(ctx context.Context, bot *te
 
   reply := newReplyKeyboard(models.TrackingDeleteConfirmMenu).
     Row().Button("Помощь 💡", bot, telegram.MatchTypeExact, b.handleStartMenu).
-    Row().Button("Мои отслеживания ✉️", bot, telegram.MatchTypeExact, b.handleTrackingListMenu).
+    Row().Button("Мои отслеживания ✉️", bot, telegram.MatchTypeExact, b.handleTrackingMyMenu).
     Row().Button("Добавить отслеживание 📨", bot, telegram.MatchTypeExact, b.handleTrackingInsertMenu)
 
   err = b.sendMessage(ctx, sendMessageParams{
@@ -1118,7 +1316,8 @@ func (b *Transport) handleShopList(ctx context.Context, bot *telegram.Bot, updat
 2. Lime
 3. Kixbox
 4. Ridestep
-5. Октябрь Скейтшоп
+5. Траектория
+6. Октябрь Скейтшоп
 Список постепенно будет пополняться 🤓`,
     Reply: reply,
   })

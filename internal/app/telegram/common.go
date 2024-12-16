@@ -8,6 +8,7 @@ import (
   "time"
   "unicode/utf8"
 
+  set "github.com/deckarep/golang-set/v2"
   telegram "github.com/go-telegram/bot"
   tgmodels "github.com/go-telegram/bot/models"
   tginline "github.com/go-telegram/ui/keyboard/inline"
@@ -21,6 +22,7 @@ import (
   "github.com/ushakovn/outfit/internal/models"
   "github.com/ushakovn/outfit/pkg/stringer"
   "github.com/ushakovn/outfit/pkg/validator"
+  mongodbopts "go.mongodb.org/mongo-driver/mongo/options"
   "golang.org/x/net/html"
 )
 
@@ -52,6 +54,8 @@ func makeCutSizeValuesString(values []string) string {
 
     sizesString := strings.Join(cop, ", ")
     sizesString = strings.TrimSpace(sizesString)
+
+    return sizesString
   }
 
   sizesString := strings.Join(values, ", ")
@@ -230,18 +234,7 @@ func (b *Transport) listTrackings(ctx context.Context, chatID int64) ([]*models.
     return nil, fmt.Errorf("b.deps.Mongodb.Find: %v", err)
   }
 
-  list := make([]*models.Tracking, 0, len(res))
-
-  for _, record := range res {
-    tracking, ok := record.(*models.Tracking)
-    if !ok {
-      return nil, fmt.Errorf("cast %v with type: %[1]T to: %T failed", record, new(models.Tracking))
-    }
-
-    list = append(list, tracking)
-  }
-
-  return list, nil
+  return makeListTrackings(res)
 }
 
 func (b *Transport) checkProductURL(url string) error {
@@ -317,7 +310,7 @@ func parseTrackingSizes(fields string, session *models.Session) (values []string
   sizesSlice := strings.Split(fields, ",")
 
   if len(sizesSlice) == 0 {
-    exampleSizes := makeCutSizeValuesString(session.Tracking.Sizes.Values)
+    storedSizes := makeCutSizeValuesString(session.Tracking.Sizes.Values)
 
     err = fmt.Sprintf(`Не удалось найти список размеров для товара 😟
 
@@ -325,7 +318,7 @@ func parseTrackingSizes(fields string, session *models.Session) (values []string
 %s
 
 Попробуйте еще раз 😉
-`, exampleSizes)
+`, storedSizes)
 
     return nil, err
   }
@@ -337,6 +330,61 @@ func parseTrackingSizes(fields string, session *models.Session) (values []string
   }
 
   return values, ""
+}
+
+func parseSearchQuery(fields string) (query string) {
+  query = html.UnescapeString(fields)
+  query = stringer.SanitizeString(query)
+
+  return query
+}
+
+func makeProductSizes(product models.Product) (values []string) {
+  values = lo.Map(product.Options, func(option models.ProductOption, _ int) string {
+    return option.Size.Base.Value
+  })
+  return values
+}
+
+func makeTrackingSizesText(values []string, session *models.Session) (text string) {
+  sizes := strings.Join(values, ", ")
+  sizes = strings.TrimSpace(sizes)
+
+  text += fmt.Sprintf(`<b>Введенные вами размеры 📋</b>
+%s
+`, sizes)
+
+  if warn := validateTrackingSizes(values, session); warn != "" {
+    text += warn
+  }
+
+  text += `
+Если все верно, нажмите далее
+Или введите актуальные размеры заново 😉`
+
+  return text
+}
+
+func validateTrackingSizes(values []string, session *models.Session) (warn string) {
+  storedSizes := makeProductSizes(session.Tracking.ParsedProduct)
+
+  valuesSet := set.NewSet(values...)
+  valuesSet.RemoveAll(storedSizes...)
+
+  if valuesSet.IsEmpty() {
+    return ""
+  }
+
+  notFoundSizes := strings.Join(valuesSet.ToSlice(), ", ")
+  notFoundSizes = strings.TrimSpace(notFoundSizes)
+
+  warn = fmt.Sprintf(
+    `
+Среди них есть отсутствующие в размерной сетке 👀
+%s
+`, notFoundSizes)
+
+  return warn
 }
 
 func findChatIdInUpdate(update *tgmodels.Update) (int64, bool) {
@@ -428,4 +476,93 @@ func (b *Transport) insertIssue(ctx context.Context, issue *models.Issue) error 
   }
 
   return nil
+}
+
+func (b *Transport) findTrackingInCache(chatId int64, index int) (url string, ok bool) {
+  url, ok = b.deps.cache.TrackingURLs[chatSelectedTracking{
+    ChatId: chatId,
+    Index:  index,
+  }]
+  return url, ok
+}
+
+func (b *Transport) fillTrackingsCache(chatId int64, list []*models.Tracking) {
+  clear(b.deps.cache.TrackingURLs)
+
+  for index, tracking := range list {
+    key := chatSelectedTracking{
+      ChatId: chatId,
+      Index:  index,
+    }
+    b.deps.cache.TrackingURLs[key] = tracking.URL
+  }
+}
+
+func (b *Transport) searchTracking(ctx context.Context, query string) ([]*models.Tracking, error) {
+  res, err := b.deps.Mongodb.TextSearch(ctx, mongodb.TextSearchParams{
+    CommonParams: mongodb.CommonParams{
+      Database:   "outfit",
+      Collection: "trackings",
+      StructType: models.Tracking{},
+    },
+    Query: query,
+    Limit: 100,
+  })
+  if err != nil {
+    return nil, fmt.Errorf("b.deps.Mongodb.TextSearch: %w", err)
+  }
+
+  return makeListTrackings(res)
+}
+
+func (b *Transport) checkTrackingIndex(ctx context.Context) error {
+  _, err := b.deps.Mongodb.CreateIndex(ctx, mongodb.CreateIndexParams{
+    CommonParams: mongodb.CommonParams{
+      Database:   "outfit",
+      Collection: "trackings",
+      StructType: models.Tracking{},
+    },
+    Parts: []mongodb.IndexPart{
+      {
+        Field: "parsed_product.brand",
+        Type:  mongodb.IndexTypeText,
+      },
+      {
+        Field: "parsed_product.category",
+        Type:  mongodb.IndexTypeText,
+      },
+      {
+        Field: "parsed_product.description",
+        Type:  mongodb.IndexTypeText,
+      },
+      {
+        Field: "tracking.url",
+        Type:  mongodb.IndexTypeText,
+      },
+      {
+        Field: "tracking.comment",
+        Type:  mongodb.IndexTypeText,
+      },
+    },
+    Options: mongodbopts.Index().SetName("trackings_text_index"),
+  })
+  if err != nil {
+    return fmt.Errorf("b.deps.Mongodb.CreateIndex: %w", err)
+  }
+  return nil
+}
+
+func makeListTrackings(res []any) (list []*models.Tracking, err error) {
+  list = make([]*models.Tracking, 0, len(res))
+
+  for _, record := range res {
+    tracking, ok := record.(*models.Tracking)
+    if !ok {
+      return nil, fmt.Errorf("cast %v with type: %[1]T to: %T failed", record, new(models.Tracking))
+    }
+
+    list = append(list, tracking)
+  }
+
+  return list, nil
 }

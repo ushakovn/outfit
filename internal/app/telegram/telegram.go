@@ -2,6 +2,7 @@ package telegram
 
 import (
   "context"
+  "fmt"
 
   telegram "github.com/go-telegram/bot"
   "github.com/ushakovn/outfit/internal/app/tracker"
@@ -35,8 +36,23 @@ func NewTransport(deps Dependencies) *Transport {
   return &Transport{deps: deps}
 }
 
-func (b *Transport) Start(ctx context.Context) {
+func (b *Transport) Start(ctx context.Context) error {
   b.registerHandlers(ctx)
 
+  err := b.beforeStartChecks(ctx)
+  if err != nil {
+    return fmt.Errorf("b.beforeStartChecks: %w", err)
+  }
+
   go b.deps.Telegram.Start(ctx)
+
+  return nil
+}
+
+func (b *Transport) beforeStartChecks(ctx context.Context) error {
+  err := b.checkTrackingIndex(ctx)
+  if err != nil {
+    return fmt.Errorf("b.checkTrackingIndex: %w", err)
+  }
+  return nil
 }
