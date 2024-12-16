@@ -8,6 +8,7 @@ import (
   "time"
   "unicode/utf8"
 
+  set "github.com/deckarep/golang-set/v2"
   telegram "github.com/go-telegram/bot"
   tgmodels "github.com/go-telegram/bot/models"
   tginline "github.com/go-telegram/ui/keyboard/inline"
@@ -52,6 +53,8 @@ func makeCutSizeValuesString(values []string) string {
 
     sizesString := strings.Join(cop, ", ")
     sizesString = strings.TrimSpace(sizesString)
+
+    return sizesString
   }
 
   sizesString := strings.Join(values, ", ")
@@ -317,7 +320,7 @@ func parseTrackingSizes(fields string, session *models.Session) (values []string
   sizesSlice := strings.Split(fields, ",")
 
   if len(sizesSlice) == 0 {
-    exampleSizes := makeCutSizeValuesString(session.Tracking.Sizes.Values)
+    storedSizes := makeCutSizeValuesString(session.Tracking.Sizes.Values)
 
     err = fmt.Sprintf(`Не удалось найти список размеров для товара 😟
 
@@ -325,7 +328,7 @@ func parseTrackingSizes(fields string, session *models.Session) (values []string
 %s
 
 Попробуйте еще раз 😉
-`, exampleSizes)
+`, storedSizes)
 
     return nil, err
   }
@@ -337,6 +340,54 @@ func parseTrackingSizes(fields string, session *models.Session) (values []string
   }
 
   return values, ""
+}
+
+func makeProductSizes(product models.Product) (values []string) {
+  values = lo.Map(product.Options, func(option models.ProductOption, _ int) string {
+    return option.Size.Base.Value
+  })
+  return values
+}
+
+func makeTrackingSizesText(values []string, session *models.Session) (text string) {
+  sizes := strings.Join(values, ", ")
+  sizes = strings.TrimSpace(sizes)
+
+  text += fmt.Sprintf(`<b>Введенные вами размеры 📋</b>
+%s
+`, sizes)
+
+  if warn := validateTrackingSizes(values, session); warn != "" {
+    text += warn
+  }
+
+  text += `
+Если все верно, нажмите далее
+Или введите актуальные размеры заново 😉`
+
+  return text
+}
+
+func validateTrackingSizes(values []string, session *models.Session) (warn string) {
+  storedSizes := makeProductSizes(session.Tracking.ParsedProduct)
+
+  valuesSet := set.NewSet(values...)
+  valuesSet.RemoveAll(storedSizes...)
+
+  if valuesSet.IsEmpty() {
+    return ""
+  }
+
+  notFoundSizes := strings.Join(valuesSet.ToSlice(), ", ")
+  notFoundSizes = strings.TrimSpace(notFoundSizes)
+
+  warn = fmt.Sprintf(
+    `
+Среди них есть отсутствующие в размерной сетке 👀
+%s
+`, notFoundSizes)
+
+  return warn
 }
 
 func findChatIdInUpdate(update *tgmodels.Update) (int64, bool) {

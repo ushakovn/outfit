@@ -142,28 +142,31 @@ func (b Builder) BuildProductMessage() BuildResult {
 `, b.product.Brand, b.product.Category,
     b.product.URL)
 
-  for index, option := range b.product.Options {
+  if len(b.product.Options) != 0 {
+    text += `
+<b>Размерная сетка 📋:</b>
+`
+  }
+
+  for _, option := range b.product.Options {
 
     if option.Stock.Quantity != 0 {
       text += fmt.Sprintf(`
-%d. Размер: %s в наличии
+%s в наличии
 Кол-во: %d шт`,
-        index+1,
         option.Size.Base.Value,
         option.Stock.Quantity)
     }
 
     if option.Stock.Quantity == 0 && option.Size.NotFoundSize == nil {
       text += fmt.Sprintf(`
-%d. Размер: %s отсутствует в наличии`,
-        index+1,
+%s отсутствует в наличии`,
         option.Size.Base.Value)
     }
 
     if option.Size.NotFoundSize != nil {
       text += fmt.Sprintf(`
-%d. Размер: %s не был найден на сайте`,
-        index+1,
+%s не был найден на сайте`,
         option.Size.NotFoundSize.Value)
     }
 

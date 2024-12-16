@@ -29,9 +29,13 @@ const (
 type SessionMenu = string
 
 type Session struct {
-  ChatId    int64            `bson:"chat_id" json:"chat_id"`
-  Message   SessionMessage   `bson:"message" json:"message"`
-  Tracking  *Tracking        `bson:"tracking" json:"tracking"`
+  ChatId int64 `bson:"chat_id" json:"chat_id"`
+
+  // TODO: move to Session.Entities.
+  Message SessionMessage `bson:"message" json:"message"`
+  // TODO: move to Session.Entities.
+  Tracking *Tracking `bson:"tracking" json:"tracking"`
+
   Entities  *SessionEntities `bson:"entities" json:"entities"`
   UpdatedAt time.Time        `bson:"updated_at" json:"updated_at"`
 }

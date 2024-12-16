@@ -55,22 +55,24 @@ func findProductCode(url string) (code string, err error) {
   return code, nil
 }
 
-func findProductWithModel(url string, product *ParsedProduct) (*ProductWithModel, error) {
-  color, err := findProductColor(url)
+func makeParsedProduct(url string, page *ParsedPage) (*ParsedProduct, error) {
+  selectedColor, err := findProductColor(url)
   if err != nil {
     return nil, fmt.Errorf("findProductColor: %w", err)
   }
 
-  model, ok := lo.Find(product.Models, func(model ParsedModel) bool {
-    return strings.EqualFold(color, model.Code)
+  foundModel, ok := lo.Find(page.Models, func(model ParsedModel) bool {
+    modelColor := strings.TrimSpace(model.Code)
+
+    return strings.EqualFold(selectedColor, modelColor)
   })
   if !ok {
-    return nil, fmt.Errorf("product model with color: %s not found", color)
+    return nil, fmt.Errorf("product model with color: %s not found", selectedColor)
   }
 
-  return &ProductWithModel{
-    Product: lo.FromPtr(product),
-    Model:   model,
+  return &ParsedProduct{
+    Page:  lo.FromPtr(page),
+    Model: foundModel,
   }, nil
 }
 
@@ -88,10 +90,12 @@ func findProductColor(url string) (color string, err error) {
   color = strings.Trim(parts[len(parts)-1], "- ")
   color, _, _ = strings.Cut(color, "?")
 
+  color = strings.TrimSpace(color)
+
   return color, nil
 }
 
-func (p *Parser) findProductJSON(ctx context.Context, url string) (*ProductWithModel, error) {
+func (p *Parser) findProductJSON(ctx context.Context, url string) (*ParsedProduct, error) {
   code, err := findProductCode(url)
   if err != nil {
     return nil, fmt.Errorf("findProductCode: %w", err)
@@ -104,19 +108,19 @@ func (p *Parser) findProductJSON(ctx context.Context, url string) (*ProductWithM
 
   resp, err := p.deps.Client.R().SetContext(ctx).Get(endpoint)
   if err != nil {
-    return nil, fmt.Errorf("p.deps.Xpath.GetHtmlDoc: %w", err)
+    return nil, fmt.Errorf("resty.Client.Get: %w", err)
   }
 
   body := resp.Body()
-  parsed := new(ParsedProduct)
+  parsed := new(ParsedPage)
 
   if err = json.Unmarshal(body, parsed); err != nil {
-    return nil, fmt.Errorf("product unmarshal json: %w", err)
+    return nil, fmt.Errorf("page unmarshal json: %w", err)
   }
 
-  found, err := findProductWithModel(url, parsed)
+  found, err := makeParsedProduct(url, parsed)
   if err != nil {
-    return nil, fmt.Errorf("findProductWithModel: %w", err)
+    return nil, fmt.Errorf("makeParsedProduct: %w", err)
   }
 
   return found, nil
@@ -210,14 +214,14 @@ func (p *Parser) Parse(ctx context.Context, params models.ParseParams) (*models.
   return &product, nil
 }
 
-func makeProductFromParsed(url string, parsed *ProductWithModel) models.Product {
+func makeProductFromParsed(url string, parsed *ParsedProduct) models.Product {
   return models.Product{
     URL:         url,
     Type:        models.FindProductType(url),
     ImageURL:    strings.TrimSpace(parsed.Model.Photo.Url),
     Brand:       "LIME",
-    Category:    strings.TrimSpace(parsed.Product.Name),
-    Description: strings.TrimSpace(parsed.Product.Description),
+    Category:    strings.TrimSpace(parsed.Page.Name),
+    Description: strings.TrimSpace(parsed.Page.Description),
   }
 }
 

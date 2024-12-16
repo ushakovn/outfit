@@ -4,7 +4,7 @@ import (
   "time"
 )
 
-type ParsedProduct struct {
+type ParsedPage struct {
   Id           int    `json:"id"`
   Name         string `json:"name"`
   Article      string `json:"article"`
@@ -109,7 +109,7 @@ type ParsedSku struct {
   FuturePriceTooltipText  string `json:"future_price_tooltip_text"`
 }
 
-type ProductWithModel struct {
-  Product ParsedProduct
-  Model   ParsedModel
+type ParsedProduct struct {
+  Page  ParsedPage
+  Model ParsedModel
 }

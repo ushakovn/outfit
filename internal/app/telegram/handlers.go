@@ -3,13 +3,11 @@ package telegram
 import (
   "context"
   "errors"
-  "fmt"
   "strings"
   "time"
 
   telegram "github.com/go-telegram/bot"
   tgmodels "github.com/go-telegram/bot/models"
-  "github.com/samber/lo"
   log "github.com/sirupsen/logrus"
   "github.com/ushakovn/outfit/internal/app/tracker"
   "github.com/ushakovn/outfit/internal/models"
@@ -287,10 +285,8 @@ func (b *Transport) handleTrackingInputUrlMenu(ctx context.Context, bot *telegra
     return
   }
 
-  sizesValues := lo.Map(message.Product.Options, func(option models.ProductOption, _ int) string {
-    return option.Size.Base.Value
-  })
-  sizesCount := len(message.Product.Options)
+  sizesValues := makeProductSizes(message.Product)
+  sizesCount := len(sizesValues)
 
   // Если товар имеет one size размер.
   if sizesCount <= 1 {
@@ -315,9 +311,9 @@ func (b *Transport) handleTrackingInputUrlMenu(ctx context.Context, bot *telegra
   } else {
     text := `<b>Проверьте полученные от бота данные</b>
 
-Если все хорошо, выберите необходимые размеры из списка
+Если все хорошо, выберите необходимые размеры из списка 📋
 
-Доступные размеры: 
+<b>Доступные размеры 📋:</b> 
 `
     sizesString := strings.Join(sizesValues, ", ")
     text += strings.TrimSpace(sizesString)
@@ -328,7 +324,7 @@ func (b *Transport) handleTrackingInputUrlMenu(ctx context.Context, bot *telegra
 
 Кстати, вы можете ввести размер, которого нет в списке, если точно знаете, что такой существует и может появиться в наличии на сайте 😉
 
-Пример корректного ввода 💬
+<b>Пример корректного ввода 💬</b>
 `
 
     text += makeCutSizeValuesString(sizesValues)
@@ -414,37 +410,13 @@ func (b *Transport) handleTrackingInputSizesMenu(ctx context.Context, bot *teleg
     return
   }
 
-  setTrackingSizes(session.Tracking, sizesValues)
-
-  err = b.upsertSession(ctx, upsertSessionParams{
-    ChatId:   chatId,
-    Menu:     models.TrackingInputSizesMenu,
-    Tracking: session.Tracking,
-  })
-  if err != nil {
-    log.
-      WithField("chat_id", chatId).
-      WithField("menu", models.TrackingInputSizesMenu).
-      Errorf("b.upsertSession: %v", err)
-
-    return
-  }
-
   reply = newReplyKeyboard(models.TrackingInputSizesMenu).
     Row().Button("Далее", bot, telegram.MatchTypeExact, b.handleTrackingInputFlagMenu).
     Row().Button("Назад", bot, telegram.MatchTypeExact, b.handleStartSilentMenu)
 
-  sizesString := strings.Join(sizesValues, ", ")
-  sizesString = strings.TrimSpace(sizesString)
-
-  text := fmt.Sprintf(`Введенные вами размеры: %s
-`, sizesString)
-
-  text += `Если все верно, нажмите далее 😉`
-
   err = b.sendMessage(ctx, sendMessageParams{
     ChatId: chatId,
-    Text:   text,
+    Text:   makeTrackingSizesText(sizesValues, session),
     Reply:  reply,
   })
   if err != nil {
@@ -452,6 +424,22 @@ func (b *Transport) handleTrackingInputSizesMenu(ctx context.Context, bot *teleg
       WithField("chat_id", chatId).
       WithField("menu", models.TrackingInputSizesMenu).
       Errorf("b.sendMessage: %v", err)
+
+    return
+  }
+
+  setTrackingSizes(session.Tracking, sizesValues)
+
+  err = b.upsertSession(ctx, upsertSessionParams{
+    ChatId:   chatId,
+    Menu:     models.TrackingInputUrlMenu,
+    Tracking: session.Tracking,
+  })
+  if err != nil {
+    log.
+      WithField("chat_id", chatId).
+      WithField("menu", models.TrackingInputSizesMenu).
+      Errorf("b.upsertSession: %v", err)
 
     return
   }
@@ -1118,7 +1106,8 @@ func (b *Transport) handleShopList(ctx context.Context, bot *telegram.Bot, updat
 2. Lime
 3. Kixbox
 4. Ridestep
-5. Октябрь Скейтшоп
+5. Траектория
+6. Октябрь Скейтшоп
 Список постепенно будет пополняться 🤓`,
     Reply: reply,
   })
