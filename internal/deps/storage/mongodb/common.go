@@ -3,6 +3,7 @@ package mongodb
 import (
   "reflect"
 
+  "github.com/ushakovn/outfit/pkg/reflection"
   "go.mongodb.org/mongo-driver/bson"
 )
 
@@ -36,7 +37,7 @@ func makeBsonDUpdates(document any) bson.D {
     val := value.Field(i)
     tag := field.Tag.Get("bson")
 
-    if !isZeroType(val) {
+    if !reflection.IsZeroType(val) {
       update := bson.E{
         Key:   tag,
         Value: val.Interface(),

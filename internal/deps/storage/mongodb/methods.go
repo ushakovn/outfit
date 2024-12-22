@@ -394,40 +394,6 @@ func (c *Client) TextSearch(ctx context.Context, params TextSearchParams) ([]any
     },
   }
 
-  //filters := bson.D{{"$text", bson.D{{"$search", params.Query}}}}
-
-  //filters := bson.D{{"$text", bson.D{{"$search", params.Query}}}}
-
-  //cursor, err := c.client.
-  //  Database(params.Database).
-  //  Collection(params.Collection).
-  //  Find(ctx, filters)
-  //
-  //if err != nil {
-  //  return nil, fmt.Errorf("mongodb.Database.Collection.Find: %w", err)
-  //}
-  //
-  //defer func() {
-  //  if err = cursor.Close(ctx); err != nil {
-  //    log.Error("mongodb.Client: cursor.Close: %v", err)
-  //  }
-  //}()
-  //
-  //for cursor.Next(ctx) {
-  //  doc := any(make(map[string]any))
-  //
-  //  if params.StructType != nil {
-  //    typ := reflect.TypeOf(params.StructType)
-  //    doc = reflect.New(typ).Interface()
-  //  }
-  //
-  //  if err = cursor.Decode(doc); err != nil {
-  //    return nil, fmt.Errorf("cursor.Decode: %T: %w", doc, err)
-  //  }
-  //}
-  //
-  //return nil, nil
-
   res, err := c.Find(ctx, FindParams{
     CommonParams: params.CommonParams,
     Filters:      filters,

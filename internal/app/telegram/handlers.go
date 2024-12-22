@@ -81,12 +81,34 @@ func (b *Transport) handleStartSilentMenu(ctx context.Context, bot *telegram.Bot
     return
   }
 
+  session, err := b.findSession(ctx, chatId)
+  if err != nil {
+    log.
+      WithField("chat_id", chatId).
+      WithField("menu", models.StartSilentMenu).
+      Errorf("b.findSession: %v", err)
+
+    return
+  }
+
+  err = b.deleteSessionMessage(ctx, session)
+  if err != nil {
+    log.
+      WithField("chat_id", chatId).
+      WithField("menu", models.StartSilentMenu).
+      Errorf("b.deleteSessionMessage: %v", err)
+
+    return
+  }
+
   reply := newReplyKeyboard(models.StartSilentMenu).
     Row().Button("Помощь 💡", bot, telegram.MatchTypeExact, b.handleStartMenu).
     Row().Button("Мои отслеживания ✉️", bot, telegram.MatchTypeExact, b.handleTrackingMyMenu).
-    Row().Button("Добавить отслеживание 📨", bot, telegram.MatchTypeExact, b.handleTrackingInsertMenu)
+    Row().Button("Добавить отслеживание 📨", bot, telegram.MatchTypeExact, b.handleTrackingInsertMenu).
+    Row().Button("Поддерживаемые магазины 👜", bot, telegram.MatchTypeExact, b.handleShopList).
+    Row().Button("Обратная связь 📧", bot, telegram.MatchTypeExact, b.handleInsertIssueMenu)
 
-  err := b.sendMessage(ctx, sendMessageParams{
+  err = b.sendMessage(ctx, sendMessageParams{
     ChatId: chatId,
     Text:   `Вы вернулись в главное меню бота 💬`,
     Reply:  reply,
@@ -841,7 +863,27 @@ func (b *Transport) handleTrackingSearchSilentInputMenu(ctx context.Context, bot
     return
   }
 
-  err := b.sendMessage(ctx, sendMessageParams{
+  session, err := b.findSession(ctx, chatId)
+  if err != nil {
+    log.
+      WithField("chat_id", chatId).
+      WithField("menu", models.TrackingDeleteConfirmMenu).
+      Errorf("b.findSession: %v", err)
+
+    return
+  }
+
+  err = b.deleteSessionMessage(ctx, session)
+  if err != nil {
+    log.
+      WithField("chat_id", chatId).
+      WithField("menu", models.TrackingSearchSilentInputMenu).
+      Errorf("b.deleteSessionMessage: %v", err)
+
+    return
+  }
+
+  err = b.sendMessage(ctx, sendMessageParams{
     ChatId: chatId,
     Text:   `Введите ключевые слова для поиска 💬`,
   })
@@ -960,7 +1002,8 @@ func (b *Transport) handleTrackingSearchShowMenu(ctx context.Context, bot *teleg
     Trackings: list,
   })
 
-  if _, err = slider.Show(ctx, bot, chatId); err != nil {
+  message, err := slider.Show(ctx, bot, chatId)
+  if err != nil {
     log.
       WithField("chat_id", chatId).
       WithField("menu", models.TrackingSearchShowMenu).
@@ -970,8 +1013,9 @@ func (b *Transport) handleTrackingSearchShowMenu(ctx context.Context, bot *teleg
   }
 
   err = b.upsertSession(ctx, upsertSessionParams{
-    ChatId: chatId,
-    Menu:   models.TrackingSearchShowMenu,
+    ChatId:    chatId,
+    Menu:      models.TrackingSearchShowMenu,
+    MessageID: &message.ID,
   })
   if err != nil {
     log.
@@ -1022,8 +1066,8 @@ func (b *Transport) handleTrackingMyMenu(ctx context.Context, bot *telegram.Bot,
 
   err := b.sendMessage(ctx, sendMessageParams{
     ChatId: chatId,
-    Text: `Для просмотра всех отслеживаний, выберите "Список 📋"
-Для поиска определенного отслеживания, выберите "Поиск 🔎"`,
+    Text: `Выберите вариант просмотра:
+Список 📋 или Поиск 🔎`,
     Reply: reply,
   })
   if err != nil {
@@ -1363,7 +1407,7 @@ func (b *Transport) handleInsertIssueMenu(ctx context.Context, bot *telegram.Bot
   err := b.sendMessage(ctx, sendMessageParams{
     ChatId: chatId,
     Text: `Выберите категорию обратной связи: 
-баг или улучшение 😉`,
+Баг или Улучшение 😉`,
     Reply: reply,
   })
   if err != nil {

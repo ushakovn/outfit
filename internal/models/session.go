@@ -32,14 +32,12 @@ const (
 
 type SessionMenu = string
 
+type ChatId = int64
+
 type Session struct {
-  ChatId int64 `bson:"chat_id" json:"chat_id"`
-
-  // TODO: move to Session.Entities.
-  Message SessionMessage `bson:"message" json:"message"`
-  // TODO: move to Session.Entities.
-  Tracking *Tracking `bson:"tracking" json:"tracking"`
-
+  ChatId    ChatId           `bson:"chat_id" json:"chat_id"`
+  Message   SessionMessage   `bson:"message" json:"message"`
+  Tracking  *Tracking        `bson:"tracking" json:"tracking"`
   Entities  *SessionEntities `bson:"entities" json:"entities"`
   UpdatedAt time.Time        `bson:"updated_at" json:"updated_at"`
 }
@@ -49,6 +47,6 @@ type SessionEntities struct {
 }
 
 type SessionMessage struct {
-  Id   *int64      `bson:"id" json:"id"`
+  Id   *int        `bson:"id" json:"id"`
   Menu SessionMenu `bson:"menu" json:"menu"`
 }

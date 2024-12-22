@@ -23,8 +23,10 @@ const (
 
 type ProductType = string
 
+type ProductURL = string
+
 type Product struct {
-  URL         string          `bson:"url" json:"url"`
+  URL         ProductURL      `bson:"url" json:"url"`
   Type        ProductType     `bson:"type" json:"type"`
   ImageURL    string          `bson:"image_url" json:"image_url"`
   Brand       string          `bson:"brand" json:"brand"`

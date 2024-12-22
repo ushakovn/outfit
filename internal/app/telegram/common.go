@@ -20,6 +20,7 @@ import (
   "github.com/ushakovn/outfit/internal/app/tracker"
   "github.com/ushakovn/outfit/internal/deps/storage/mongodb"
   "github.com/ushakovn/outfit/internal/models"
+  "github.com/ushakovn/outfit/pkg/cache"
   "github.com/ushakovn/outfit/pkg/stringer"
   "github.com/ushakovn/outfit/pkg/validator"
   mongodbopts "go.mongodb.org/mongo-driver/mongo/options"
@@ -95,6 +96,22 @@ func (b *Transport) findSession(ctx context.Context, chatID int64) (*models.Sess
   return session, nil
 }
 
+func (b *Transport) deleteSessionMessage(ctx context.Context, session *models.Session) error {
+  if session.Message.Id == nil {
+    return nil
+  }
+
+  _, err := b.deps.Telegram.DeleteMessage(ctx, &telegram.DeleteMessageParams{
+    ChatID:    session.ChatId,
+    MessageID: lo.FromPtr(session.Message.Id),
+  })
+  if err != nil {
+    return fmt.Errorf("b.deps.Telegram.DeleteMessage: %w", err)
+  }
+
+  return nil
+}
+
 func (b *Transport) deleteTracking(ctx context.Context, session *models.Session) error {
   _, err := b.deps.Mongodb.Delete(ctx, mongodb.DeleteParams{
     CommonParams: mongodb.CommonParams{
@@ -154,7 +171,7 @@ func (b *Transport) sendMessage(ctx context.Context, params sendMessageParams) e
 type upsertSessionParams struct {
   ChatId    int64
   Menu      models.SessionMenu
-  MessageID *int64
+  MessageID *int
   Tracking  *models.Tracking
   Entities  *models.SessionEntities
 }
@@ -478,24 +495,32 @@ func (b *Transport) insertIssue(ctx context.Context, issue *models.Issue) error 
   return nil
 }
 
-func (b *Transport) findTrackingInCache(chatId int64, index int) (url string, ok bool) {
-  url, ok = b.deps.cache.TrackingURLs[chatSelectedTracking{
-    ChatId: chatId,
-    Index:  index,
-  }]
+func (b *Transport) findTrackingInCache(chatId models.ChatId, index trackingIndex) (url string, ok bool) {
+  key := cache.Key[models.ChatId, trackingIndex]{
+    P: chatId,
+    S: index,
+  }
+  url, ok = b.deps.cache.trackings.Get(key)
+
+  b.deleteTrackingsCache(chatId)
+
   return url, ok
 }
 
-func (b *Transport) fillTrackingsCache(chatId int64, list []*models.Tracking) {
-  clear(b.deps.cache.TrackingURLs)
+func (b *Transport) fillTrackingsCache(chatId models.ChatId, list []*models.Tracking) {
+  b.deleteTrackingsCache(chatId)
 
   for index, tracking := range list {
-    key := chatSelectedTracking{
-      ChatId: chatId,
-      Index:  index,
+    key := cache.Key[models.ChatId, trackingIndex]{
+      P: chatId,
+      S: index,
     }
-    b.deps.cache.TrackingURLs[key] = tracking.URL
+    b.deps.cache.trackings.Set(key, tracking.URL)
   }
+}
+
+func (b *Transport) deleteTrackingsCache(chatId models.ChatId) {
+  b.deps.cache.trackings.DeleteP(chatId)
 }
 
 func (b *Transport) searchTracking(ctx context.Context, query string) ([]*models.Tracking, error) {

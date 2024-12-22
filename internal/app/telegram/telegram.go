@@ -7,6 +7,8 @@ import (
   telegram "github.com/go-telegram/bot"
   "github.com/ushakovn/outfit/internal/app/tracker"
   "github.com/ushakovn/outfit/internal/deps/storage/mongodb"
+  "github.com/ushakovn/outfit/internal/models"
+  "github.com/ushakovn/outfit/pkg/cache"
 )
 
 type Transport struct {
@@ -17,23 +19,30 @@ type Dependencies struct {
   Tracker  *tracker.Tracker
   Telegram *telegram.Bot
   Mongodb  *mongodb.Client
-  cache    Cache
+
+  cache dependenciesCache
 }
 
-type Cache struct {
-  TrackingURLs map[chatSelectedTracking]string
+type dependenciesCache struct {
+  trackings *cache.Cache[models.ChatId, trackingIndex, models.ProductURL]
 }
 
-type chatSelectedTracking struct {
-  ChatId int64
-  Index  int
-}
+type trackingIndex = int
 
 func NewTransport(deps Dependencies) *Transport {
-  deps.cache = Cache{
-    TrackingURLs: make(map[chatSelectedTracking]string),
-  }
+  deps.cache = makeDependenciesCache()
+
   return &Transport{deps: deps}
+}
+
+func makeDependenciesCache() dependenciesCache {
+  return dependenciesCache{
+    trackings: cache.NewCache[
+      models.ChatId,
+      trackingIndex,
+      models.ProductURL,
+    ](),
+  }
 }
 
 func (b *Transport) Start(ctx context.Context) error {
